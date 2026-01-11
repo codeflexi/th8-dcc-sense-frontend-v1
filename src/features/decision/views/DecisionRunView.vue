@@ -169,13 +169,14 @@ const handleRun = () => {
                 
                 <div class="flex-1">
                     <div class="flex justify-between items-center">
-                        <h4 class="text-sm font-bold text-slate-900">{{ rule.name }}</h4>
+                        <h4 class="text-sm font-bold text-slate-900">{{ rule.id }} - {{ rule.description }}</h4>
                         <span class="text-[10px] font-mono px-2 py-0.5 rounded border uppercase tracking-wider"
                               :class="rule.hit ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-600 border-emerald-100'">
                             {{ rule.hit ? 'RISK DETECTED' : 'PASSED' }}
                         </span>
                     </div>
-                    <p class="text-xs text-slate-500 mt-1">{{ rule.description }}</p>
+                    <div v-if="!rule.hit"> <p class="text-xs text-slate-500 mt-1 bg-slate-100 p-2 rounded">{{ rule.inputs }}</p></div>
+                   
                     
                     <div v-if="rule.hit && rule.matched.length > 0" class="mt-3 bg-white rounded border border-amber-100 overflow-hidden">
                         <table class="w-full text-left text-xs">
