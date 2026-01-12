@@ -1,5 +1,6 @@
 export type CaseStatus = 'OPEN' | 'CLOSED' | 'PENDING';
-export type RiskLevel = 'HIGH' | 'MEDIUM' | 'LOW';
+export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
 
 export interface CaseDTO {
   id: string;

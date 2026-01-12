@@ -1,8 +1,10 @@
 // src/features/cases/api.ts
 import { http } from '@/lib/http';
-import type { CaseDTO } from '@/types/case';
+import type { CaseDTO, RiskLevel } from '@/types/case';
 
-// Interface ตรงตาม Swagger
+// -----------------------------
+// Backend Interfaces
+// -----------------------------
 interface BackendCaseItem {
   id: string;
   vendor_id: string;
@@ -11,53 +13,81 @@ interface BackendCaseItem {
   created_at: string;
   priority_score?: number;
   domain?: string;
-  // เพิ่ม Type เผื่อ Backend ส่งมา
+
   vendor_name?: string;
   vendor?: string;
+
+  risk_level?: string;
+
+  payload?: {
+    risk_level?: string;
+  };
 }
 
 interface BackendCaseDetail extends BackendCaseItem {
   decision_summary?: {
     risk_level?: string;
     recommended_action?: string;
+    decided_at?: string;
   };
+
   violations?: Array<{
     rule_name: string;
     severity: string;
   }>;
 }
 
+// -----------------------------
+// Helpers
+// -----------------------------
+const normalizeRiskLevel = (val?: string): RiskLevel => {
+  if (val === 'LOW' || val === 'MEDIUM' || val === 'HIGH' || val === 'CRITICAL') {
+    return val;
+  }
+  return 'LOW';
+};
+
+// -----------------------------
+// API
+// -----------------------------
 export const caseApi = {
   async getAll(): Promise<CaseDTO[]> {
     try {
       const items = await http.get<BackendCaseItem[]>('/api/cases');
-      
-      // 🔥 DEBUG: ดูว่า Backend ส่งอะไรมาบ้าง (กด F12 ดู Console)
+
       if (items.length > 0) {
         console.log('Sample Case from Backend:', items[0]);
       }
 
       return items.map(item => ({
         id: item.id,
-        // พยายามดึงจากทุก field ที่เป็นไปได้
         vendor: item.vendor_id || item.vendor_name || item.vendor || 'Unknown Vendor',
         amount: item.amount_total,
         currency: 'THB',
         status: item.status as any,
-        risk_level: (item.priority_score || 0) > 80 ? 'HIGH' : 'LOW', 
+
+        // // 🎯 canonical + type-safe
+        // risk_level: normalizeRiskLevel(
+        //   item.risk_level ||
+        //   item.payload?.risk_level
+        // ),
+        // 🎯 canonical + type-safe
+        risk_level: normalizeRiskLevel(
+          item.risk_level 
+        ),
+
         created_at: item.created_at,
         priority_score: item.priority_score || 0,
-        domain: item.domain || 'procurement' 
+        domain: item.domain || 'procurement'
       }));
     } catch (e) {
-      console.warn('API Failed, using Mock Data');
-      return []; 
+      console.warn('API Failed, using empty list');
+      return [];
     }
   },
-  
-  // ... functions อื่นๆ (getById, ingest) เหมือนเดิม
+
   async getById(id: string): Promise<BackendCaseDetail> {
-      return http.get<BackendCaseDetail>(`/api/cases/${id}`);
+    return http.get<BackendCaseDetail>(`/api/cases/${id}`);
   },
 
   async ingest(data: { case_id: string; domain: string; payload: any }): Promise<boolean> {
@@ -74,51 +104,3 @@ export const caseApi = {
     }
   }
 };
-
-// import { http } from '@/lib/http';
-// import type { CaseDTO } from '@/types/case';
-
-// export const caseApi = {
-//   async getAll(): Promise<CaseDTO[]> {
-//     try {
-//       // Mapping Field จาก Backend (ตาม Swagger) -> Frontend
-//       const rawData = await http.get<any[]>('/api/cases');
-      
-//       return rawData.map(item => ({
-//         id: item.id,
-//         vendor: item.vendor_id || 'Unknown Vendor',
-//         amount: item.amount_total,
-//         currency: 'THB', // Backend ยังไม่มีค่านี้ Hardcode ไปก่อน
-//         status: item.status, 
-//         risk_level: (item.priority_score || 0) > 80 ? 'HIGH' : 'LOW', // Logic ชั่วคราว
-//         created_at: item.created_at,
-//         priority_score: item.priority_score
-//       }));
-//     } catch (e) {
-//       console.error('Load Cases Failed', e);
-//       return []; 
-//     }
-//   },
-
-//   async getById(id: string) {
-//     // ดึง Detail
-//     return http.get(`/api/cases/${id}`);
-//   },
-
-//   // เพิ่มฟังก์ชันนี้
-//   async ingest(data: { case_id: string; payload: any }): Promise<boolean> {
-//     try {
-//       // ยิงไปที่ /api/cases/ingest ตาม Swagger
-//       await http.post('/api/cases/ingest', {
-//         case_id: data.case_id,
-//         domain: 'procurement', // Default domain
-//         payload: data.payload  // ข้อมูลจริงของ PO
-//       });
-//       return true;
-//     } catch (e) {
-//       console.error('Ingest Failed', e);
-//       throw e;
-//     }
-//   }
-
-// };
