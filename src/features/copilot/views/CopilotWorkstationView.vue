@@ -3,8 +3,8 @@ import { ref, nextTick, onBeforeUnmount, computed } from 'vue'
 import {
   Bot, User, Send, Cpu,
   Loader2, CheckCircle2,
-  History, ChevronDown, FileText,
-  Search, AlertCircle, Quote, GripVertical
+  History, FileText,
+  Search, Quote, ExternalLink
 } from 'lucide-vue-next'
 import { copilotApi, type CopilotEvent } from '@/features/copilot/api'
 
@@ -25,10 +25,12 @@ interface EvidenceItem {
   content?: string
   citation?: {
     clause_id?: string
-    page?: number
+    page?: number | string
+    page_label?: string
     [key: string]: any
   }
   similarity?: number
+  open_url?: string // ✅ เพิ่ม field นี้สำหรับเก็บลิงก์
 }
 
 interface RunRecord {
@@ -96,10 +98,20 @@ const getConfidenceColor = (val: number | null) => {
 const formatEvidenceLabel = (e: EvidenceItem, idx: number) => {
   const c = e.citation || {}
   const parts = []
+  
+  // พยายามหาเลขหน้าจากหลายๆ key
+  const page = c.page_label || c.page
+  
   if (c.clause_id) parts.push(`Clause ${c.clause_id}`)
-  if (c.page) parts.push(`Page ${c.page}`)
+  if (page) parts.push(`Page ${page}`)
+  
   return parts.length ? parts.join(', ') : `Source #${idx + 1}`
 }
+
+// ✅ Computed: หา Evidence ตัวที่กำลัง Highlight อยู่ (เพื่อเอาไปโชว์ปุ่ม Open Link)
+const highlightedEvidence = computed(() => 
+  evidences.value.find(e => e.chunk_id === currentEvidenceId.value)
+)
 
 // --- Logic: Splitter Resizing ---
 const startResize = (e: MouseEvent) => {
@@ -185,13 +197,18 @@ const citationSuperscripts = computed(() =>
   (whyThisAnswer.value || []).slice(0, 6).map((w, i) => ({
     n: i + 1,
     chunk_id: w.chunk_id,
-    similarity: w.similarity || 0
+    similarity: w.similarity || 0,
+    open_url: w.open_url // ✅ รับ open_url มาจาก why_this_answer
   }))
 )
 
 const openCitation = (n: number) => {
   const w = citationSuperscripts.value.find(x => x.n === n)
   if (w) {
+    // ถ้ามี URL ให้เปิด URL เลย (Optional behavior)
+    // if (w.open_url) window.open(w.open_url, '_blank')
+    
+    // หรือแค่ Highlight Evidence ตามเดิม
     const match = evidences.value.find(e => e.chunk_id === w.chunk_id)
     if (match) pickEvidence(match)
   }
@@ -244,7 +261,8 @@ const sendMessage = async () => {
             chunk_id: event.data.chunk_id,
             content: event.data.content,
             citation: event.data.citation,
-            similarity: event.data.similarity
+            similarity: event.data.similarity,
+            open_url: event.data.open_url // ✅ รับค่า open_url มาจาก backend
           }
           evidences.value.push(ev)
           if (evidences.value.length === 1) pickEvidence(ev)
@@ -302,8 +320,8 @@ const sendMessage = async () => {
 const suggestedQuestions = [
   { label: '💸 ราคาสินค้า', query: 'ราคาสินค้าตามสัญญาคือเท่าไหร่' },
   { label: '📅 เงื่อนไขชำระ', query: 'เงื่อนไขการชำระเงินเป็นอย่างไร' },
-  { label: '🚚 SLA ส่งมอบ', query: 'กำหนด SLA การส่งมอบไว้กี่วัน' },
-  { label: '⚠️ ค่าปรับ', query: 'หากส่งล่าช้ามีค่าปรับอย่างไร' },
+  { label: '🚚 SLA ส่งมอบ', query: 'เงื่อนไขการบอกเลิกสัญญา' },
+  { label: '⚠️ เงื่อนไขการบอกเลิก', query: 'เงื่อนไขการบอกเลิกสัญญา' },
 ]
 
 const askSuggested = (q: string) => {
@@ -401,6 +419,7 @@ const askSuggested = (q: string) => {
                   :key="c.n"
                   @click="openCitation(c.n)"
                   class="flex items-center gap-1 pl-1.5 pr-2 py-0.5 rounded-full bg-slate-50 border border-slate-200 hover:border-red-300 hover:text-red-600 hover:bg-red-50 transition-all text-[10px] font-medium text-slate-600"
+                  :title="c.open_url ? 'Click to highlight, then check Evidence Panel' : 'Highlight evidence'"
                 >
                   <sup class="font-bold text-red-500">{{ c.n }}</sup>
                   <span>{{ (c.similarity * 100).toFixed(0) }}%</span>
@@ -497,6 +516,18 @@ const askSuggested = (q: string) => {
              </div>
              <div class="p-6 text-sm leading-7 text-slate-700 font-serif bg-[#fffbf5]">
                 {{ highlightedText }}
+
+                <div v-if="highlightedEvidence?.open_url" class="mt-4 pt-4 border-t border-amber-100/50 flex justify-end">
+                   <a
+                     :href="highlightedEvidence.open_url"
+                     target="_blank"
+                     rel="noopener noreferrer"
+                     class="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-amber-200 text-amber-700 rounded-md text-xs font-semibold hover:bg-amber-50 hover:border-amber-300 transition-colors shadow-sm"
+                   >
+                     <FileText class="w-3.5 h-3.5" />
+                     Open Source PDF ↗
+                   </a>
+                </div>
              </div>
           </div>
 
@@ -518,6 +549,17 @@ const askSuggested = (q: string) => {
                       <span class="text-xs font-semibold text-slate-700 group-hover:text-red-700">
                          {{ formatEvidenceLabel(e, idx) }}
                       </span>
+                      
+                      <a
+                        v-if="e.open_url"
+                        :href="e.open_url"
+                        target="_blank"
+                        @click.stop
+                        class="text-slate-400 hover:text-red-600 transition-colors p-0.5 ml-1"
+                        title="Open PDF"
+                      >
+                         <ExternalLink class="w-3 h-3" />
+                      </a>
                    </div>
                    <span class="text-[10px] text-slate-400">
                       Sim: {{ e.similarity?.toFixed(2) }}

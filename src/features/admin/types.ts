@@ -9,12 +9,15 @@ export interface SystemRule {
   lastUpdated: string;
 }
 
+// types.ts
 export interface RAGDocument {
   id: string;
   filename: string;
+  domain: string;
   size: string;
   uploadDate: string;
-  chunkCount: number; // จำนวนชิ้นข้อมูลที่ AI อ่าน
-  vectorStatus: 'INDEXED' | 'PROCESSING' | 'FAILED';
+  chunkCount: number;
+  vectorStatus: string; // หรือ 'INDEXED' | 'PROCESSING' ...
   policyVersion: string;
+  metadata?: any; // ✅ เพิ่มบรรทัดนี้
 }

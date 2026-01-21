@@ -1,139 +1,195 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { adminApi } from '../api';
-import type { SystemRule, RAGDocument } from '../types';
+import { ref, onMounted } from 'vue'
+import { 
+  FileText, Database, Activity, 
+  CheckCircle2, AlertCircle, Loader2, 
+  Eye, X, Code, ExternalLink 
+} from 'lucide-vue-next'
 
-const activeTab = ref<'RULES' | 'KNOWLEDGE'>('RULES');
-const rules = ref<SystemRule[]>([]);
-const docs = ref<RAGDocument[]>([]);
-const isLoading = ref(true);
+// Import จาก admin/api
+import { adminApi, type RAGDocument } from '@/features/admin/api'
 
-onMounted(async () => {
+const documents = ref<RAGDocument[]>([])
+const isLoading = ref(true)
+const selectedDoc = ref<RAGDocument | null>(null)
+
+const fetchDocs = async () => {
   try {
-    isLoading.value = true;
-    const [rulesData, docsData] = await Promise.all([
-      adminApi.getRules(),
-      adminApi.getDocuments()
-    ]);
-    rules.value = rulesData;
-    docs.value = docsData;
+    isLoading.value = true
+    console.log("Fetching documents...")
+    documents.value = await adminApi.getDocuments()
+    console.log("Documents received:", documents.value)
+  } catch (error) {
+    console.error("Error in view:", error)
   } finally {
-    isLoading.value = false;
+    isLoading.value = false
   }
-});
+}
+
+const formatDate = (dateStr: string) => {
+  if (!dateStr || dateStr === '-') return '-'
+  const date = new Date(dateStr)
+  if (isNaN(date.getTime())) return dateStr
+  
+  return date.toLocaleDateString('en-GB', {
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  })
+}
+
+// ✅ ฟังก์ชันเปิดไฟล์ (เรียก API ขอ Signed URL)
+const openFile = async (doc: RAGDocument) => {
+  try {
+    document.body.style.cursor = 'wait';
+    
+    const url = await adminApi.getDocumentUrl(doc.id);
+    
+    if (url) {
+      window.open(url, '_blank');
+    } else {
+      alert("ไม่สามารถเปิดไฟล์ได้ (File path not found)");
+    }
+  } catch (e) {
+    console.error(e)
+    alert("Error opening file");
+  } finally {
+    document.body.style.cursor = 'default';
+  }
+}
+
+const getStatusBadge = (status: string) => {
+  switch (status) {
+    case 'INDEXED': return 'bg-emerald-100 text-emerald-700 border-emerald-200'
+    case 'PROCESSING': return 'bg-blue-100 text-blue-700 border-blue-200'
+    case 'ERROR': return 'bg-rose-100 text-rose-700 border-rose-200'
+    default: return 'bg-slate-100 text-slate-600 border-slate-200'
+  }
+}
+
+onMounted(() => {
+  fetchDocs()
+})
 </script>
 
 <template>
- <div class="h-full  overflow-y-auto bg-slate-50 p-6">
-    <div class="max-w-6xl mx-auto w-full animate-enter space-y-6">
+  <div class="flex flex-col h-full bg-slate-50 p-8 font-sans relative">
     
-    <div>
-      <h1 class="text-2xl font-bold text-slate-900">System Control Center</h1>
-      <p class="text-slate-500 text-sm mt-1">Manage AI Logic (Rules) and Knowledge Base (RAG Source)</p>
+    <div class="flex justify-between items-end mb-8">
+      <div>
+        <h1 class="text-2xl font-bold text-slate-800">System Control Center</h1>
+        <p class="text-slate-500 mt-1">Manage AI Logic & Knowledge Base</p>
+      </div>
+      <div class="flex gap-3">
+         <div class="bg-white border px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium shadow-sm">
+            <Activity class="w-4 h-4 text-emerald-500" />
+            <span>System Online</span>
+         </div>
+      </div>
     </div>
 
-    <div class="border-b border-slate-200">
-      <nav class="-mb-px flex space-x-6">
-        <button 
-          @click="activeTab = 'RULES'"
-          class="pb-3 px-1 border-b-2 font-medium text-sm transition-colors flex items-center gap-2"
-          :class="activeTab === 'RULES' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'"
-        >
-          <span class="material-icons-outlined">gavel</span>
-          Active Logic & Rules
-          <span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-xs ml-1">{{ rules.length }}</span>
-        </button>
-        <button 
-          @click="activeTab = 'KNOWLEDGE'"
-          class="pb-3 px-1 border-b-2 font-medium text-sm transition-colors flex items-center gap-2"
-          :class="activeTab === 'KNOWLEDGE' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'"
-        >
-          <span class="material-icons-outlined">library_books</span>
-          RAG Knowledge Base
-          <span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-xs ml-1">{{ docs.length }}</span>
-        </button>
-      </nav>
-    </div>
-
-    <div v-if="isLoading" class="space-y-4">
-       <div v-for="i in 3" :key="i" class="h-16 bg-slate-50 rounded animate-pulse"></div>
-    </div>
-
-    <div v-else>
-      
-      <div v-if="activeTab === 'RULES'" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <table class="w-full text-left border-collapse">
-          <thead class="bg-slate-50 text-xs font-bold text-slate-500 uppercase border-b border-slate-200">
-            <tr>
-              <th class="px-6 py-3">Rule Code</th>
-              <th class="px-6 py-3">Logic Type</th>
-              <th class="px-6 py-3">Category</th>
-              <th class="px-6 py-3">Description</th>
-              <th class="px-6 py-3 text-center">Status</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100">
-            <tr v-for="rule in rules" :key="rule.id" class="hover:bg-slate-50 transition-colors">
-              <td class="px-6 py-4 font-mono text-sm font-bold text-slate-900">{{ rule.code }}</td>
-              <td class="px-6 py-4">
-                <span class="text-[10px] font-bold px-2 py-1 rounded border"
-                  :class="rule.logicType === 'LLM_AGENT' ? 'bg-purple-50 text-purple-700 border-purple-100' : 'bg-orange-50 text-orange-700 border-orange-100'">
-                  {{ rule.logicType.replace('_', ' ') }}
-                </span>
-              </td>
-              <td class="px-6 py-4 text-xs font-bold text-slate-500">{{ rule.category }}</td>
-              <td class="px-6 py-4 text-sm text-slate-600">{{ rule.description }}</td>
-              <td class="px-6 py-4 text-center">
-                <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  Active
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+    <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex-1 flex flex-col">
+      <div class="grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
+        <div class="col-span-4">Filename</div> 
+        <div class="col-span-2">Domain</div>   
+        <div class="col-span-2">Date</div>
+        <div class="col-span-1 text-center">Vectors</div> 
+        <div class="col-span-2 text-center">Status</div>
+        <div class="col-span-1 text-right">Meta</div>
       </div>
 
-      <div v-if="activeTab === 'KNOWLEDGE'" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <table class="w-full text-left border-collapse">
-          <thead class="bg-slate-50 text-xs font-bold text-slate-500 uppercase border-b border-slate-200">
-            <tr>
-              <th class="px-6 py-3">Filename</th>
-              <th class="px-6 py-3">Policy Version</th>
-              <th class="px-6 py-3">Upload Date</th>
-              <th class="px-6 py-3 text-right">Vectors (Chunks)</th>
-              <th class="px-6 py-3 text-center">Index Status</th>
-              <th class="px-6 py-3"></th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100">
-            <tr v-for="doc in docs" :key="doc.id" class="hover:bg-slate-50 transition-colors">
-              <td class="px-6 py-4">
-                <div class="flex items-center gap-3">
-                  <span class="material-icons-outlined text-slate-400">description</span>
-                  <span class="font-medium text-slate-900 text-sm">{{ doc.filename }}</span>
-                </div>
-              </td>
-              <td class="px-6 py-4 text-sm text-slate-600 font-mono">{{ doc.policyVersion }}</td>
-              <td class="px-6 py-4 text-sm text-slate-500">{{ doc.uploadDate }}</td>
-              <td class="px-6 py-4 text-right font-mono text-sm">{{ doc.chunkCount.toLocaleString() }}</td>
-              <td class="px-6 py-4 text-center">
-                <span class="text-[10px] font-bold px-2 py-1 rounded border"
-                  :class="doc.vectorStatus === 'INDEXED' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-blue-50 text-blue-700 border-blue-100 animate-pulse'">
-                  {{ doc.vectorStatus }}
-                </span>
-              </td>
-              <td class="px-6 py-4 text-right">
-                <button class="text-slate-400 hover:text-primary transition">
-                  <span class="material-icons-outlined text-sm">visibility</span>
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <div class="overflow-y-auto flex-1">
+        <div v-if="isLoading" class="flex justify-center items-center h-40">
+           <Loader2 class="w-8 h-8 animate-spin text-slate-300" />
+        </div>
 
+        <div v-else-if="!documents.length" class="text-center py-10 text-slate-400">
+           <Database class="w-12 h-12 mx-auto mb-3 opacity-20" />
+           <p>No documents found.</p>
+           <p class="text-xs mt-2 text-red-400">Please check console log (F12) if you suspect an error.</p>
+        </div>
+        
+        <div 
+          v-else
+          v-for="doc in documents" 
+          :key="doc.id"
+          class="grid grid-cols-12 gap-4 px-6 py-4 border-b border-slate-100 hover:bg-slate-50 transition-colors items-center group"
+        >
+          <div class="col-span-4 flex items-center gap-3 group/file">
+            <div class="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-slate-500 group-hover/file:bg-blue-50 group-hover/file:text-blue-600 transition-colors">
+              <FileText class="w-4 h-4" />
+            </div>
+            
+            <div class="min-w-0">
+              <button 
+                @click="openFile(doc)"
+                class="text-sm font-medium text-slate-800 truncate hover:text-blue-600 hover:underline flex items-center gap-2 focus:outline-none"
+                :title="doc.filename"
+              >
+                {{ doc.filename }}
+                <ExternalLink class="w-3 h-3 opacity-0 group-hover/file:opacity-100 transition-opacity text-slate-400" />
+              </button>
+              
+              <p class="text-[10px] text-slate-400 font-mono">ID: {{ doc.id.slice(0,8) }}...</p>
+            </div>
+          </div>
+
+          <div class="col-span-2">
+             <span class="px-2 py-1 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded text-[10px] font-bold uppercase tracking-wide">
+               {{ doc.domain || 'GENERAL' }}
+             </span>
+          </div>
+
+          <div class="col-span-2 text-xs text-slate-600">{{ formatDate(doc.uploadDate) }}</div>
+          
+          <div class="col-span-1 text-center">
+             <span class="px-2 py-1 bg-slate-100 rounded text-xs font-semibold text-slate-600">
+               {{ doc.chunkCount?.toLocaleString() || 0 }}
+             </span>
+          </div>
+
+          <div class="col-span-2 flex justify-center">
+            <span class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border" 
+              :class="getStatusBadge(doc.vectorStatus)"
+            >
+               <CheckCircle2 v-if="doc.vectorStatus === 'INDEXED'" class="w-3 h-3" />
+               <Loader2 v-else-if="doc.vectorStatus === 'PROCESSING'" class="w-3 h-3 animate-spin" />
+               <AlertCircle v-else class="w-3 h-3" />
+               {{ doc.vectorStatus }}
+            </span>
+          </div>
+
+          <div class="col-span-1 text-right">
+             <button 
+               @click="selectedDoc = doc"
+               class="p-2 rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-colors"
+               title="View Metadata"
+             >
+               <Eye class="w-4 h-4" />
+             </button>
+          </div>
+        </div>
+      </div>
     </div>
-  </div>
+
+    <div v-if="selectedDoc" class="absolute inset-0 z-50 bg-black/20 backdrop-blur-[1px] flex items-center justify-center p-4">
+      <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 animate-in fade-in zoom-in duration-200">
+        <div class="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+          <div class="flex items-center gap-2">
+             <Code class="w-4 h-4 text-slate-500" />
+             <h3 class="text-sm font-bold text-slate-700">Document Metadata</h3>
+          </div>
+          <button @click="selectedDoc = null" class="text-slate-400 hover:text-slate-600">
+            <X class="w-5 h-5" />
+          </button>
+        </div>
+        <div class="p-0 bg-[#0d1117] overflow-auto max-h-[400px]">
+          <pre class="text-xs font-mono text-slate-300 p-4">{{ JSON.stringify(selectedDoc.metadata, null, 2) }}</pre>
+        </div>
+        <div class="px-4 py-2 bg-slate-50 border-t border-slate-100 text-right">
+           <span class="text-[10px] text-slate-400">File ID: {{ selectedDoc.id }}</span>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>

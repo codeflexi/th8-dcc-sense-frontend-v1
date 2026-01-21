@@ -1,6 +1,19 @@
 import type { SystemRule, RAGDocument } from './types';
+// ✅ เพิ่ม export type ตรงนี้ เพื่อให้ไฟล์อื่น import RAGDocument ไปใช้ได้
+export type { SystemRule, RAGDocument } from './types';
+
+// Helper function: แปลงสถานะจาก Backend (lowercase) เป็น Frontend (UPPERCASE)
+const mapVectorStatus = (status: string): 'INDEXED' | 'PROCESSING' | 'ERROR' | 'UNKNOWN' => {
+  switch (status?.toLowerCase()) {
+    case 'completed': return 'INDEXED';
+    case 'processing': return 'PROCESSING';
+    case 'failed': return 'ERROR';
+    default: return 'UNKNOWN';
+  }
+};
 
 export const adminApi = {
+  // 1. getRules: ยังคงใช้ Mock Data ตามเดิม (หรือจะแก้เป็น Real API ในอนาคตก็ได้)
   async getRules(): Promise<SystemRule[]> {
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -28,24 +41,51 @@ export const adminApi = {
     });
   },
 
+  // 2. getDocuments: แก้เป็น Real API Call
   async getDocuments(): Promise<RAGDocument[]> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve([
-          {
-            id: 'd1', filename: 'Procurement_Policy_v3.pdf', size: '2.4 MB',
-            uploadDate: '2025-12-01', chunkCount: 1450, vectorStatus: 'INDEXED', policyVersion: 'v3.0'
-          },
-          {
-            id: 'd2', filename: 'Vendor_SLA_Agreement_2025.pdf', size: '1.1 MB',
-            uploadDate: '2025-12-15', chunkCount: 890, vectorStatus: 'INDEXED', policyVersion: '2025-A'
-          },
-          {
-            id: 'd3', filename: 'Internal_Audit_Guideline.docx', size: '500 KB',
-            uploadDate: '2026-01-08', chunkCount: 320, vectorStatus: 'PROCESSING', policyVersion: 'Draft-1'
-          }
-        ]);
-      }, 500);
-    });
+    try {
+      // เรียก API ไปที่ Backend ของเรา
+      const response = await fetch('/api/documents/');
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch documents: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      // Map ข้อมูลจาก Backend -> Frontend Interface (RAGDocument)
+      return data.map((doc: any) => ({
+        id: doc.id,
+        filename: doc.file_name,
+        domain: doc.domain || 'general',
+        // Backend ยังไม่ได้ส่ง size มา ให้ใส่ Placeholder หรือคำนวณถ้ามีข้อมูล
+        size: 'N/A', 
+        // แปลงวันที่ created_at เป็น YYYY-MM-DD
+        uploadDate: doc.created_at ? new Date(doc.created_at).toISOString().split('T')[0] : '-',
+        chunkCount: doc.vector_count,
+        vectorStatus: mapVectorStatus(doc.status),
+        // ดึง Policy Version จาก Metadata (ถ้ามี)
+        policyVersion: doc.metadata?.policy_version || doc.metadata?.version || '-',
+        // ✅ ส่ง Metadata ทั้งก้อนไปด้วย (เผื่อปุ่ม View Meta ใช้งาน)
+        metadata: doc.metadata
+      }));
+
+    } catch (error) {
+      console.error("[AdminAPI] Error fetching documents:", error);
+      return []; // คืนค่า array ว่างเพื่อไม่ให้หน้าจอพัง
+    }
+  },
+  // ✅ เพิ่มฟังก์ชันนี้
+  async getDocumentUrl(id: string): Promise<string | null> {
+    try {
+      const response = await fetch(`/api/documents/${id}/url`);
+      if (!response.ok) throw new Error("Failed to get URL");
+      
+      const data = await response.json();
+      return data.url;
+    } catch (error) {
+      console.error("Error fetching document URL:", error);
+      return null;
+    }
   }
 };
