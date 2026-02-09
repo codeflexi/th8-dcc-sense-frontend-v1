@@ -164,7 +164,7 @@ const stopFlush = () => {
 }
 
 const scrollToBottom = () => {
-  nextTick(() => {
+  requestAnimationFrame(() => {
     if (chatContainer.value) {
       chatContainer.value.scrollTop = chatContainer.value.scrollHeight
     }
@@ -329,6 +329,18 @@ const askSuggested = (q: string) => {
   userInput.value = q
   sendMessage()
 }
+
+onBeforeUnmount(() => {
+  stopFlush()
+
+  document.removeEventListener('mousemove', handleMouseMove)
+  document.removeEventListener('mouseup', stopResize)
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+})
+
+
+
 </script>
 
 <template>

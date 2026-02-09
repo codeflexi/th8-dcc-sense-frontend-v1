@@ -1,75 +1,139 @@
 <script setup lang="ts">
-import { useRoute } from 'vue-router';
-const route = useRoute();
-const caseId = route.params.caseId;
+import { ref, watch, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { getCaseDetail } from '@/features/cases/api'
+
+const route = useRoute()
+const router = useRouter()
+
+const caseHeader = ref<any>(null)
+const loading = ref(false)
+
+const caseId = computed(() => route.params.caseId as string)
+
+async function loadCase() {
+  if (!caseId.value) return
+  loading.value = true
+
+  try {
+    const res = await getCaseDetail(caseId.value)
+    caseHeader.value = res
+  } catch (e) {
+    console.error('load case header error', e)
+  } finally {
+    loading.value = false
+  }
+}
+
+/**
+ * โหลดเฉพาะตอน caseId เปลี่ยนจริง
+ * tab switch จะไม่ยิงซ้ำ
+ */
+watch(caseId, loadCase, { immediate: true })
+
+const goBack = () => router.push('/cases')
 </script>
 
 <template>
-  <div class="h-full flex flex-col overflow-hidden bg-slate-50">
-    
-    <div class="shrink-0 bg-slate-50 px-6 pt-6 z-10">
-      
-      <div class="mb-4">
-         <RouterLink to="/cases" class="text-xs font-medium text-slate-400 hover:text-primary flex items-center gap-1 mb-2 transition-colors">
-           <span class="material-icons-outlined text-sm">arrow_back</span> Back to Portfolio
-         </RouterLink>
-         <h1 class="text-2xl font-bold font-mono text-slate-900">{{ caseId }}</h1>
+  <div class="w-full">
+
+    <!-- ================= HEADER ================= -->
+    <div class="px-8 pt-6 pb-4 border-b bg-white">
+
+      <button
+        @click="goBack"
+        class="text-sm text-slate-500 hover:text-slate-900 mb-3"
+      >
+        ← Back to Case Portfolio
+      </button>
+
+      <div class="flex justify-between items-center">
+
+        <!-- LEFT -->
+        <div>
+          <div class="text-xs text-slate-400">Case</div>
+          <div class="text-lg font-bold">
+            {{ caseHeader?.entity_name || caseId }}
+          </div>
+
+          <div class="text-sm text-slate-500">
+            {{ caseHeader?.reference_id || '-' }}
+            · {{ caseHeader?.domain || '-' }}
+          </div>
+        </div>
+
+        <!-- RIGHT -->
+        <div class="text-right">
+          <div class="text-xs text-slate-400">Total Amount</div>
+          <div class="text-xl font-mono font-bold">
+            {{ caseHeader?.amount_total?.toLocaleString() || 0 }}
+            {{ caseHeader?.currency || 'THB' }}
+          </div>
+        </div>
+
       </div>
 
-      <div class="border-b border-slate-200">
-        <nav class="-mb-px flex space-x-2" aria-label="Tabs">
-          <RouterLink 
-            :to="`/cases/${caseId}`" 
-            active-class="bg-white text-primary border-b-2 border-primary font-bold shadow-sm"
-            exact-active-class="bg-white text-primary border-b-2 border-primary font-bold shadow-sm"
-            class="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-t-lg transition-all flex items-center gap-2 border-b-2 border-transparent"
-          >
-            <span class="material-icons-outlined text-lg">gavel</span>
-            Decision & Rules
-          </RouterLink>
+      <!-- ================= TABS ================= -->
+      <div class="flex gap-2 mt-5">
 
-          <RouterLink 
-            :to="`/cases/${caseId}/evidence`" 
-            active-class="bg-white text-primary border-b-2 border-primary font-bold shadow-sm"
-            class="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-t-lg transition-all flex items-center gap-2 border-b-2 border-transparent"
-          >
-            <span class="material-icons-outlined text-lg">fact_check</span>
-            Evidence Trace
-          </RouterLink>
-
-          <RouterLink 
-            :to="`/cases/${caseId}/audit`" 
-            active-class="bg-white text-primary border-b-2 border-primary font-bold shadow-sm"
-            class="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-t-lg transition-all flex items-center gap-2 border-b-2 border-transparent"
-          >
-            <span class="material-icons-outlined text-lg">history</span>
-            Audit Timeline
-          </RouterLink>
-        </nav>
-      </div>
-    </div>
-
-    <div class="flex-1 overflow-y-auto p-6 pb-20 scroll-smooth relative">
-      <RouterView v-slot="{ Component }">
-        <Transition 
-          name="page" 
-          mode="out-in" 
-          enter-active-class="animate-enter" 
-          leave-active-class="animate-leave"
+        <!-- DECISION -->
+        <RouterLink
+          :to="`/cases/${caseId}`"
+          v-slot="{ isActive }"
         >
-          <component :is="Component" />
-        </Transition>
-      </RouterView>
+          <button
+            :class="[
+              'px-4 py-2 rounded-lg text-sm font-semibold border transition',
+              isActive
+                ? 'bg-slate-900 text-white border-slate-900'
+                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+            ]"
+          >
+            Decision Run
+          </button>
+        </RouterLink>
+
+        <!-- EVIDENCE -->
+        <RouterLink
+          :to="`/cases/${caseId}/evidence`"
+          v-slot="{ isActive }"
+        >
+          <button
+            :class="[
+              'px-4 py-2 rounded-lg text-sm font-semibold border transition',
+              isActive
+                ? 'bg-slate-900 text-white border-slate-900'
+                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+            ]"
+          >
+            Evidence
+          </button>
+        </RouterLink>
+
+        <!-- AUDIT -->
+        <RouterLink
+          :to="`/cases/${caseId}/audit`"
+          v-slot="{ isActive }"
+        >
+          <button
+            :class="[
+              'px-4 py-2 rounded-lg text-sm font-semibold border transition',
+              isActive
+                ? 'bg-slate-900 text-white border-slate-900'
+                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+            ]"
+          >
+            Audit Timeline
+          </button>
+        </RouterLink>
+
+      </div>
     </div>
+
+    <!-- ================= CHILD VIEW ================= -->
+    <div class="min-h-[calc(100vh-160px)]">
+      <RouterView />
+    </div>
+
   </div>
 </template>
-
-<style scoped>
-.animate-enter {
-  animation: enter 0.3s ease-out;
-}
-@keyframes enter {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-</style>
