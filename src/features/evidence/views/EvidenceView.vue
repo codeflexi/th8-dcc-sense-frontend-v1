@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 
 // ✅ 1. Import API และ Types
-import { copilotApi, type CopilotEvent } from '@/features/evidence/ api_copilot';
+import { copilotApi, type CopilotEvent } from '@/features/evidence/api';
 import type { EvidenceItem } from '@/features/evidence/types'; 
 // import { caseApi } from '@/features/cases/api';
 
@@ -96,9 +96,19 @@ onMounted(() => {
     leftPanelWidth.value = containerRef.value.clientWidth * 0.4;
   }
   // ✅ เรียกฟังก์ชันดึงบริบทอัตโนมัติเมื่อโหลดหน้า
-  if (props.caseData) {
-    triggerAutoContext();
+  const autoTriggered = ref(false)
+
+onMounted(() => {
+  if (containerRef.value) {
+    leftPanelWidth.value = containerRef.value.clientWidth * 0.4
   }
+
+  if (props.caseData && !autoTriggered.value) {
+    autoTriggered.value = true
+    triggerAutoContext()
+  }
+})
+
 });
 
 // --- Resizer Logic ---
@@ -200,11 +210,14 @@ const handleStreamEvent = (event: CopilotEvent, aiMsgId: string) => {
     case 'evidence_reveal':
       const newEvidence: EvidenceItem = {
         id: event.data.file_id || `doc-${Date.now()}`,
-        docId: event.data.file_name,
+        docId: event.data.file_id,
         docTitle: event.data.file_name,
         content: event.data.highlight_text,
         score: event.data.score || 0,
-        matchType: 'SEMANTIC'
+        matchType: 'SEMANTIC',
+           // ✅ ใส่ตรงนี้
+       
+        page: event.data.page || 1
       };
       
       if (!evidenceList.value.some(e => e.content === newEvidence.content)) {
@@ -232,7 +245,7 @@ const handleStreamEvent = (event: CopilotEvent, aiMsgId: string) => {
 </script>
 
 <template>
-  <div class="absolute inset-0 overflow-y-auto bg-slate-50 scroll-smooth">
+  <div class="w-full h-full flex flex-col overflow-hidden bg-slate-50">
     <div ref="containerRef" class="flex h-full w-full bg-slate-100 overflow-hidden font-sans relative select-none">
       
       <div 
@@ -307,8 +320,10 @@ const handleStreamEvent = (event: CopilotEvent, aiMsgId: string) => {
                  <div v-if="activeDoc?.id === item.id" class="absolute left-0 top-3 bottom-3 w-0.5 bg-primary rounded-r"></div>
                  <div class="flex items-center gap-2 mb-1">
                     <span class="material-icons-outlined text-red-500 text-sm">picture_as_pdf</span>
+
                     <span class="text-xs font-bold text-slate-700 truncate group-hover:text-primary transition-colors">{{ item.docTitle }}</span>
-                 </div>
+                
+                  </div>
                  <p class="text-[11px] text-slate-500 line-clamp-2 pl-6 ml-1">
                     {{ item.content }}
                  </p>

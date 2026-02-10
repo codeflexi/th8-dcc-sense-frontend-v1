@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
 import { useDecisionRunStore } from '@/features/decision-run/store'
+import DecisionWhyPanel from './components/DecisionWhyPanel.vue'
+import DecisionEvidencePanel from './components/EvidenceCard.vue'
+
 
 const props = defineProps<{ caseId: string }>()
 
@@ -32,12 +35,23 @@ const itemsToReview = computed(() => {
   return (store.groups || []).filter(g => String(g.decision).toUpperCase() === 'REVIEW').length
 })
 
+// const overallRisk = computed(() => {
+//   const list = store.groups || []
+//   const hasHigh = list.some(g => String(g.risk_level).toUpperCase() === 'HIGH' || String(g.risk_level).toUpperCase() === 'CRITICAL')
+//   const hasMed = list.some(g => String(g.risk_level).toUpperCase() === 'MEDIUM')
+//   return hasHigh ? 'HIGH' : hasMed ? 'MEDIUM' : 'LOW'
+// })
+
 const overallRisk = computed(() => {
-  const list = store.groups || []
-  const hasHigh = list.some(g => String(g.risk_level).toUpperCase() === 'HIGH' || String(g.risk_level).toUpperCase() === 'CRITICAL')
-  const hasMed = list.some(g => String(g.risk_level).toUpperCase() === 'MEDIUM')
-  return hasHigh ? 'HIGH' : hasMed ? 'MEDIUM' : 'LOW'
+  const levels = (store.groups || []).map(g =>
+    String(g.risk_level || '').toUpperCase()
+  )
+
+  if (levels.some(l => l === 'CRITICAL' || l === 'HIGH')) return 'HIGH'
+  if (levels.some(l => l === 'MEDIUM' || l === 'MED')) return 'MEDIUM'
+  return 'LOW'
 })
+
 
 const recommendation = computed(() => {
   // CFO: ถ้ามี REVIEW อย่างน้อย 1 → REVIEW
@@ -52,6 +66,49 @@ const confidence = computed(() => {
   const avg = list.reduce((s, g) => s + (g.confidence || 0), 0) / list.length
   return Math.round(avg * 100)
 })
+
+const caseHeader = computed(() => {
+  const risk = overallRisk.value
+  const reviewCount = itemsToReview.value
+
+  return {
+    risk,
+    reviewCount,
+    autoApprovable: risk === 'LOW' && reviewCount === 0,
+    message:
+      reviewCount > 0
+        ? `${reviewCount} line item requires manual review`
+        : 'No exception detected'
+  }
+})
+
+function ruleCardClass(result?: string) {
+  const x = String(result || '').toUpperCase()
+
+  if (x === 'FAIL') {
+    return 'border-rose-300 bg-rose-50/40'
+  }
+
+  if (x === 'PASS') {
+    return 'border-emerald-200 bg-emerald-50/40'
+  }
+
+  return 'border-slate-200 bg-white'
+}
+
+const failedRules = computed(() =>
+  (store.activeRules || []).filter(r => String(r.result).toUpperCase() === 'FAIL')
+)
+
+const passedRules = computed(() =>
+  (store.activeRules || []).filter(r => String(r.result).toUpperCase() === 'PASS')
+)
+
+
+
+const hasBlockingIssues = computed(() => failedRules.value.length > 0)
+
+
 
 /* ===============================
  * UI Helpers
@@ -94,14 +151,85 @@ function variancePct(po?: number, baseline?: number) {
     <div class="max-w-7xl mx-auto px-6 py-6 pb-28">
 
       <!-- ================= KPI STRIP (CFO) ================= -->
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
-        <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+
+
+      
+      <div class="grid grid-cols-1 md:grid-cols-6 gap-3 mb-6">
+
+        <!-- OVERALL CASE RISK -->
+<div
+  class="md:col-span-2 rounded-xl p-4 shadow-sm border-2"
+  :class="
+    caseHeader.risk === 'HIGH'
+      ? 'bg-rose-50 border-rose-200'
+      : caseHeader.risk === 'MEDIUM'
+      ? 'bg-amber-50 border-amber-200'
+      : 'bg-emerald-50 border-emerald-200'
+  "
+>
+  <div class="flex items-start justify-between">
+    <div>
+      <div class="text-[11px] font-bold uppercase tracking-wider"
+        :class="
+          caseHeader.risk === 'HIGH'
+            ? 'text-rose-700'
+            : caseHeader.risk === 'MEDIUM'
+            ? 'text-amber-700'
+            : 'text-emerald-700'
+        "
+      >
+        Overall Case Risk
+      </div>
+
+      <div class="mt-2 flex items-center gap-2">
+        <span
+          class="px-3 py-1.5 rounded-full text-xs font-extrabold border"
+          :class="riskBadge(caseHeader.risk)"
+        >
+          {{ caseHeader.risk }}
+        </span>
+
+        <span class="text-sm font-bold text-slate-800">
+          {{ caseHeader.message }}
+        </span>
+      </div>
+
+      <div class="mt-2 text-xs"
+        :class="
+          caseHeader.autoApprovable
+            ? 'text-emerald-700'
+            : 'text-rose-700'
+        "
+      >
+        {{ caseHeader.autoApprovable
+          ? 'This case can be auto-approved'
+          : 'This case cannot be auto-approved'
+        }}
+      </div>
+    </div>
+
+    <div
+      class="h-9 w-9 rounded-lg flex items-center justify-center font-black"
+      :class="
+        caseHeader.risk === 'HIGH'
+          ? 'bg-rose-600 text-white'
+          : caseHeader.risk === 'MEDIUM'
+          ? 'bg-amber-500 text-white'
+          : 'bg-emerald-600 text-white'
+      "
+    >
+      !
+    </div>
+  </div>
+</div>
+
+        <div class=" md:col-span-1 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
           <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Amount</div>
           <div class="mt-1 text-2xl font-extrabold font-mono text-slate-900">{{ fmt(totalAmount) }}</div>
           <div class="text-xs text-slate-400 font-bold">{{ currency }}</div>
         </div>
 
-        <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        <div class=" md:col-span-1bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
           <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Recommendation</div>
           <div class="mt-1 text-2xl font-extrabold" :class="recommendation === 'REVIEW' ? 'text-rose-600' : 'text-emerald-700'">
             {{ recommendation }}
@@ -109,17 +237,17 @@ function variancePct(po?: number, baseline?: number) {
           <div class="text-xs text-slate-500">CFO exception-first view</div>
         </div>
 
-        <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        <div class="md:col-span-1 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
           <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Confidence</div>
           <div class="mt-1 text-2xl font-extrabold font-mono text-slate-900">{{ confidence }}%</div>
           <div class="text-xs text-slate-500">Evidence-backed</div>
         </div>
 
-        <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        <!-- <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
           <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Items to Review</div>
           <div class="mt-1 text-2xl font-extrabold font-mono text-slate-900">{{ itemsToReview }}</div>
           <div class="text-xs text-slate-500">out of {{ store.groups?.length || 0 }} line items</div>
-        </div>
+        </div> -->
       </div>
 
       <!-- ================= MAIN GRID ================= -->
@@ -291,165 +419,71 @@ function variancePct(po?: number, baseline?: number) {
         ========================================================== -->
         <div class="col-span-12 lg:col-span-5 space-y-4">
 
-          <!-- RIGHT PANEL TABS -->
-          <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-              <div>
-                <div class="text-sm font-extrabold text-slate-900">Drilldown</div>
-                <div class="text-xs text-slate-500 mt-0.5">Selected line item context</div>
-              </div>
+        <!-- ================= DRILLDOWN PANEL ================= -->
+<div class="border border-slate-200 rounded-2xl overflow-hidden bg-white">
 
-              <div class="flex gap-2">
-                <button
-                  class="px-3 py-2 rounded-lg text-xs font-bold border"
-                  :class="store.rightTab === 'WHY' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'"
-                  @click="store.setRightTab('WHY')"
-                >
-                  WHY
-                </button>
-                <button
-                  class="px-3 py-2 rounded-lg text-xs font-bold border"
-                  :class="store.rightTab === 'EVIDENCE' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'"
-                  @click="store.setRightTab('EVIDENCE')"
-                >
-                  Evidence
-                </button>
-              </div>
-            </div>
+  <!-- ================= TAB STRIP ================= -->
+  <div class="flex items-center gap-1 px-2 pt-2 bg-slate-50 border-b border-slate-200">
+    <button
+      @click="store.setRightTab('WHY')"
+      class="px-4 py-2 text-xs font-extrabold rounded-t-lg transition"
+      :class="store.rightTab === 'WHY'
+        ? 'bg-white text-slate-900 border border-slate-200 border-b-white'
+        : 'text-slate-500 hover:text-slate-800'"
+    >
+      WHY
+    </button>
 
-            <!-- WHY TAB -->
-            <div v-if="store.rightTab === 'WHY'" class="p-6 space-y-3">
-              <div class="flex items-center justify-between">
-                <div class="font-bold text-slate-900 ">
-                  Item :
-                  <span class="font-mono text-slate-700">{{ store.activeGroup?.sku?.description || '' }}</span>
-                </div>
-                <span
-                  v-if="store.activeGroup"
-                  class="px-2.5 py-1 rounded-full text-xs font-bold border"
-                  :class="riskBadge(store.activeGroup.risk_level)"
-                >
-                  {{ String(store.activeGroup.risk_level || '—').toUpperCase() }}
-                </span>
-              </div>
+    <button
+      @click="store.setRightTab('EVIDENCE')"
+      class="px-4 py-2 text-xs font-extrabold rounded-t-lg flex items-center gap-2 transition"
+      :class="store.rightTab === 'EVIDENCE'
+        ? 'bg-white text-slate-900 border border-slate-200 border-b-white'
+        : 'text-slate-500 hover:text-slate-800'"
+    >
+      Evidence
+      <span class="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-slate-200 text-slate-700">
+        {{ store.activeEvidences.length }}
+      </span>
+    </button>
+  </div>
 
-              <div v-if="store.loadingWhy" class="p-6 text-center text-sm text-slate-500 border border-slate-200 rounded-xl bg-slate-50">
-                Loading WHY…
-              </div>
+  <!-- ================= CONTENT ================= -->
+  <div class="p-5 space-y-4">
 
-              <template v-else>
-                <div
-                  v-for="r in store.activeRules"
-                  :key="r.rule_id"
-                  class="border border-slate-200 rounded-xl p-4"
-                >
-                  <div class="flex items-start justify-between gap-3">
-                    <div>
-                      <div class="font-bold text-slate-900">{{ r.rule_id }} - {{ r.result || '—' }}</div>
-                      <div class="text-sm text-slate-600 mt-1">{{ r.explanation }}</div>
-                    </div>
-                    <span class="px-2 py-1 rounded border text-xs font-bold" :class="severityBadge(r.severity)">
-                      {{ String(r.severity || '—').toUpperCase() }}
-                    </span>
-                  </div>
+    <!-- ================= WHY TAB ================= -->
+    <template v-if="store.rightTab === 'WHY'">
+      <DecisionWhyPanel />
+    </template>
 
-                  <!-- Calculation blocks (รองรับหลายรูปแบบ) -->
-                  <div v-if="r.calculation" class="mt-4 grid grid-cols-3 gap-2 text-sm">
-                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                      <div class="text-[11px] text-slate-400 font-bold uppercase">actual</div>
-                      <div class="font-mono font-extrabold text-slate-900 mt-1">
-                        {{ r.calculation.actual ?? '—' }}
-                      </div>
-                    </div>
-                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                      <div class="text-[11px] text-slate-400 font-bold uppercase">expected</div>
-                      <div class="font-mono font-extrabold text-slate-900 mt-1">
-                        {{ r.calculation.expected ?? '—' }}
-                      </div>
-                    </div>
-                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                      <div class="text-[11px] text-slate-400 font-bold uppercase">operator</div>
-                      <div class="font-mono font-extrabold text-slate-900 mt-1">
-                        {{ r.calculation.operator ?? '—' }}
-                      </div>
-                    </div>
-                  </div>
+    <!-- ================= EVIDENCE TAB ================= -->
+    <template v-else>
+      <!-- ไม่มี evidence -->
+<div
+  v-if="!store.activeEvidences.length"
+  class="p-6 text-center text-sm text-slate-500"
+>
+  No evidence for this group.
+</div>
 
-                  <div v-else class="mt-4 bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600">
-                    No calculation payload
-                  </div>
-                </div>
+<!-- มี evidence -->
+<DecisionEvidencePanel
+  v-for="ev in store.activeEvidences"
+  :key="ev.evidence_id"
+  :evidence="ev"
+  :document="store.activeDocuments.find(d => d.document_id === ev.document_id)"
+/>
 
-                <div v-if="!store.activeRules.length" class="p-6 text-center text-sm text-slate-500 border border-slate-200 rounded-xl bg-slate-50">
-                  No WHY rules for this group.
-                </div>
-              </template>
-            </div>
+    </template>
 
-            <!-- EVIDENCE TAB -->
-            <div v-else class="p-6 space-y-3">
-              <div class="flex items-center justify-between">
-                <div class="text-xs text-slate-500">
-                  Group:
-                  <span class="font-mono text-slate-700">{{ store.activeGroupId || '—' }}</span>
-                </div>
-                <button
-                  class="text-xs font-bold px-3 py-2 rounded-lg border border-slate-200 hover:bg-slate-50"
-                  @click="store.openEvidenceModal()"
-                >
-                  Open Evidence Modal
-                </button>
-              </div>
-
-              <div v-if="store.loadingEvidence" class="p-6 text-center text-sm text-slate-500 border border-slate-200 rounded-xl bg-slate-50">
-                Loading evidence…
-              </div>
-
-              <template v-else>
-                <div
-                  v-for="ev in store.activeEvidences.slice(0, 2)"
-                  :key="ev.evidence_id"
-                  class="border border-slate-200 rounded-xl p-4"
-                >
-                  <div class="flex items-start justify-between gap-3">
-                    <div>
-                      <div class="font-bold text-slate-900">
-                        {{ store.activeDocuments.find(d => d.document_id === ev.document_id)?.file_name || ev.document_id }}
-                      </div>
-                      <div class="text-xs text-slate-500 font-mono mt-1">
-                        page {{ ev.source_page ?? (ev.price_items?.[0]?.page_number ?? '—') }}
-                        · {{ ev.extraction_method || '—' }}
-                      </div>
-                    </div>
-                    <button
-                      class="text-xs font-bold px-3 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800"
-                      @click="store.openPdf(ev.document_id, ev.source_page ?? (ev.price_items?.[0]?.page_number ?? 1))"
-                    >
-                      View PDF
-                    </button>
-                  </div>
-
-                  <div v-if="ev.source_snippet" class="mt-3 bg-slate-50 border border-slate-200 rounded-lg p-3 font-mono text-xs text-slate-700">
-                    {{ ev.source_snippet }}
-                  </div>
-                  <div v-else-if="ev.price_items?.[0]?.snippet" class="mt-3 bg-slate-50 border border-slate-200 rounded-lg p-3 font-mono text-xs text-slate-700">
-                    {{ ev.price_items?.[0]?.snippet }}
-                  </div>
-
-                  <div class="mt-3 flex items-center justify-between text-xs text-slate-500">
-                    <span>confidence {{ ev.confidence ?? '—' }}</span>
-                    <span class="font-bold text-slate-600">anchor: {{ ev.anchor_type }}</span>
-                  </div>
-                </div>
-
-                <div v-if="!store.activeEvidences.length" class="p-6 text-center text-sm text-slate-500 border border-slate-200 rounded-xl bg-slate-50">
-                  No evidence for this group.
-                </div>
-              </template>
-            </div>
-          </div>
+  </div>
+</div>
 
         </div>
+
+
+
+        
       </div>
 
     </div>

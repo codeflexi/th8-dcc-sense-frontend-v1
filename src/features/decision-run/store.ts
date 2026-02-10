@@ -15,9 +15,6 @@ import type {
 type RightPanelTab = 'WHY' | 'EVIDENCE'
 
 export const useDecisionRunStore = defineStore('decisionRun', () => {
-  // =========================
-  // Core state
-  // =========================
   const currentCaseId = ref<string | null>(null)
 
   const groups = ref<CaseGroup[]>([])
@@ -27,32 +24,22 @@ export const useDecisionRunStore = defineStore('decisionRun', () => {
   const loadingWhy = ref(false)
   const loadingEvidence = ref(false)
 
-  // =========================
-  // Cached by group
-  // =========================
   const rulesCache = ref<Record<string, GroupRulesResponse>>({})
   const evidenceCache = ref<Record<string, GroupEvidenceResponse>>({})
 
-  // =========================
-  // Right panel + modals
-  // =========================
   const rightTab = ref<RightPanelTab>('WHY')
 
   const evidenceModalOpen = ref(false)
 
+  // ✅ PDF state
   const pdfModalOpen = ref(false)
   const pdfDocumentId = ref<string>('')
   const pdfPage = ref<number>(1)
-  const pdfUrl = computed(() => {
-    if (!pdfDocumentId.value) return ''
-    return decisionRunApi.getDocumentPageUrl(pdfDocumentId.value, pdfPage.value)
-  })
+  const pdfUrl = ref<string>('') // ✅ ไม่ใช่ computed แล้ว
+  const pdfPageText = ref<string>('') // (optional) เผื่ออยากโชว์ text
 
   const decisionNote = ref<string>('')
 
-  // =========================
-  // Derived
-  // =========================
   const activeGroup = computed(() => {
     const id = activeGroupId.value
     if (!id) return null
@@ -75,9 +62,6 @@ export const useDecisionRunStore = defineStore('decisionRun', () => {
   const activeDocuments = computed<EvidenceDocument[]>(() => activeEvidence.value?.documents || [])
   const activeEvidences = computed<EvidenceItem[]>(() => activeEvidence.value?.evidences || [])
 
-  // =========================
-  // Utilities
-  // =========================
   function resetForNewCase(caseId: string) {
     currentCaseId.value = caseId
     groups.value = []
@@ -92,27 +76,23 @@ export const useDecisionRunStore = defineStore('decisionRun', () => {
     pdfModalOpen.value = false
     pdfDocumentId.value = ''
     pdfPage.value = 1
+    pdfUrl.value = ''
+    pdfPageText.value = ''
 
     decisionNote.value = ''
   }
 
   function pickDefaultGroup(list: CaseGroup[]) {
-    // CFO cockpit: focus exception first
     const risky = list.find(g => String(g.risk_level).toUpperCase() !== 'LOW')
     return risky?.group_id || list?.[0]?.group_id || null
   }
 
-  // =========================
-  // Loaders
-  // =========================
   async function loadCase(caseId: string) {
     if (!caseId) return
 
-    // case change: reset all
     if (currentCaseId.value !== caseId) {
       resetForNewCase(caseId)
     } else {
-      // same case: do nothing (idempotent)
       if (groups.value.length) return
     }
 
@@ -120,19 +100,14 @@ export const useDecisionRunStore = defineStore('decisionRun', () => {
     try {
       const res: CaseGroupsResponse = await decisionRunApi.getCaseGroups(caseId)
       const list = Array.isArray(res?.groups) ? res.groups : []
-      // sort by risk then decision
+
       groups.value = [...list].sort((a, b) => {
-        const ra = String(a.risk_level || '').toUpperCase()
-        const rb = String(b.risk_level || '').toUpperCase()
-        const score = (x: string) =>
-          x === 'CRITICAL' ? 4 : x === 'HIGH' ? 3 : x === 'MEDIUM' ? 2 : x === 'LOW' ? 1 : 0
-        return score(rb) - score(ra)
+        const score = (x: string) => (x === 'CRITICAL' ? 4 : x === 'HIGH' ? 3 : x === 'MEDIUM' ? 2 : x === 'LOW' ? 1 : 0)
+        return score(String(b.risk_level || '').toUpperCase()) - score(String(a.risk_level || '').toUpperCase())
       })
 
       const first = pickDefaultGroup(groups.value)
-      if (first) {
-        await selectGroup(first, { openEvidence: false })
-      }
+      if (first) await selectGroup(first, { openEvidence: false })
     } finally {
       loadingGroups.value = false
     }
@@ -167,22 +142,16 @@ export const useDecisionRunStore = defineStore('decisionRun', () => {
   async function selectGroup(groupId: string, opts?: { openEvidence?: boolean }) {
     if (!groupId) return
     if (activeGroupId.value === groupId && (rulesCache.value[groupId] || evidenceCache.value[groupId])) {
-      // already loaded
       if (opts?.openEvidence) evidenceModalOpen.value = true
       return
     }
 
     activeGroupId.value = groupId
-
-    // load WHY first for fast perception, evidence in parallel
     await Promise.all([loadWhy(groupId), loadEvidence(groupId)])
 
     if (opts?.openEvidence) evidenceModalOpen.value = true
   }
 
-  // =========================
-  // UI actions
-  // =========================
   function setRightTab(tab: RightPanelTab) {
     rightTab.value = tab
   }
@@ -196,32 +165,43 @@ export const useDecisionRunStore = defineStore('decisionRun', () => {
     evidenceModalOpen.value = false
   }
 
-  function openPdf(documentId: string, page = 1) {
+  // ✅ จุดสำคัญ: เปิด PDF ต้อง fetch ก่อน แล้วค่อยเอา pdf_url ไปใส่ iframe
+  async function openPdf(documentId: string, page = 1) {
     if (!documentId) return
     pdfDocumentId.value = documentId
     pdfPage.value = page || 1
-    pdfModalOpen.value = true
+
+    try {
+      const res = await decisionRunApi.getDocumentPage(documentId, pdfPage.value)
+      // backend ของคุณตอนนี้คืน pdf_url
+      pdfUrl.value = (res.pdf_url || res.image_url || '') ?? ''
+      pdfPageText.value = (res.page_text || '') ?? ''
+      pdfModalOpen.value = true
+    } catch (e) {
+      // กันหน้าเงียบ
+      pdfUrl.value = ''
+      pdfPageText.value = ''
+      pdfModalOpen.value = true
+      console.error('openPdf error', e)
+    }
   }
 
   function closePdf() {
     pdfModalOpen.value = false
   }
 
-  function gotoPdfPage(page: number) {
-    pdfPage.value = Math.max(1, Number(page) || 1)
+  async function gotoPdfPage(page: number) {
+    const next = Math.max(1, Number(page) || 1)
+    pdfPage.value = next
+    if (!pdfDocumentId.value) return
+    await openPdf(pdfDocumentId.value, pdfPage.value)
   }
 
-  // =========================
-  // CFO actions (placeholder)
-  // =========================
   async function submitDecision(action: 'APPROVE' | 'REJECT') {
-    // backend submit ยังไม่ได้ให้ endpoint ในชุดนี้
-    // เราเก็บ state พร้อมไว้ให้แล้ว
     console.log('submitDecision', { action, note: decisionNote.value, caseId: currentCaseId.value })
   }
 
   return {
-    // state
     currentCaseId,
     groups,
     activeGroupId,
@@ -231,7 +211,6 @@ export const useDecisionRunStore = defineStore('decisionRun', () => {
     loadingWhy,
     loadingEvidence,
 
-    // derived
     activeGroup,
     activeWhy,
     activeEvidence,
@@ -239,17 +218,15 @@ export const useDecisionRunStore = defineStore('decisionRun', () => {
     activeDocuments,
     activeEvidences,
 
-    // modals
     evidenceModalOpen,
     pdfModalOpen,
     pdfDocumentId,
     pdfPage,
     pdfUrl,
+    pdfPageText,
 
-    // decision bar
     decisionNote,
 
-    // actions
     loadCase,
     selectGroup,
 

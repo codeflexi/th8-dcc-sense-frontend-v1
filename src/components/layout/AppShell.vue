@@ -1,19 +1,25 @@
-<!-- src/components/layout/AppShell.vue -->
 <script setup lang="ts">
 import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
 </script>
 
 <template>
-  <div class="flex h-screen w-full bg-slate-50 overflow-hidden font-sans text-slate-800">
+  <div class="flex h-screen w-full bg-slate-50 font-sans text-slate-800">
+
+    <!-- SIDEBAR -->
     <AppSidebar />
 
-    <div class="flex flex-col flex-1 min-w-0">
+    <!-- RIGHT SIDE -->
+    <div class="flex flex-col flex-1 min-w-0 h-screen">
+
       <AppHeader />
 
-      <main class="flex-1 overflow-hidden relative flex flex-col">
-        <div class="w-full h-full">
-          <!-- ✅ Keyed RouterView: ให้ lifecycle ถูกต้องเมื่อ route เปลี่ยน -->
+      <!-- 🔥 IMPORTANT: ต้อง flex + overflow -->
+      <main class="flex-1 min-h-0 flex flex-col">
+
+        <!-- 🔥 scroll container -->
+        <div class="flex-1 min-h-0 overflow-y-auto">
+
           <RouterView v-slot="{ Component, route }">
             <Transition
               name="page"
@@ -21,11 +27,18 @@ import AppHeader from './AppHeader.vue'
               enter-active-class="animate-enter"
               leave-active-class="animate-leave"
             >
-              <component :is="Component" :key="route.fullPath" />
+              <!-- 🔥 KEY FIX: full height container -->
+              <div class="min-h-full w-full">
+                <component :is="Component" :key="route.fullPath" />
+              </div>
+
             </Transition>
           </RouterView>
+
         </div>
+
       </main>
+
     </div>
   </div>
 </template>

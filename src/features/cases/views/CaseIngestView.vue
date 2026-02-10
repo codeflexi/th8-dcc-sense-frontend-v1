@@ -1,106 +1,119 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
-import { useRouter } from 'vue-router';
-import { caseApi } from '../api';
-// 1. Import
-import { useToast } from '@/composables/useToast';
+import { ref, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { caseApi } from '../api'
+import { useToast } from '@/composables/useToast'
 
-// 2. Setup
-const { addToast } = useToast();
+const { addToast } = useToast()
+const router = useRouter()
+const isSubmitting = ref(false)
 
-const router = useRouter();
-const isSubmitting = ref(false);
-
-// --- 1. Data Models ---
+// =========================
+// LINE MODEL
+// =========================
 interface LineItem {
-  sku: string;
-  description: string;
-  qty: number;
-  unitPrice: number;
+  sku: string
+  description: string
+  qty: number
+  unitPrice: number
 }
 
 const lineItems = ref<LineItem[]>([
-  { sku: 'IT-LAP-001', description: 'MacBook Pro 14"', qty: 5, unitPrice: 75000 },
-  { sku: 'IT-ACC-002', description: 'Magic Mouse', qty: 5, unitPrice: 2500 }
-]);
+  { sku: 'CHEM-IPA-20', description: 'Isopropyl Alcohol 99 20L Drum', qty: 10, unitPrice: 3000 },
+  { sku: 'CHEM-DET-10', description: 'Industrial Detergent Liquid (10L)', qty: 20, unitPrice: 900 }
+])
 
+// =========================
+// FORM
+// =========================
 const formData = ref({
-  vendorName: 'Siam Makro PCL',
-  amount: 0, // Will auto-calc
-  poNumber: `PO-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
-  description: 'IT Equipment Batch Procurement Q1',
-  date: new Date().toISOString().split('T')[0]
-});
+  vendorId: 'th8',   // ⭐ entity_id ต้องเป็น vendor id (ไม่ใช่ชื่อ)
+  poNumber: `PO-${new Date().getFullYear()}-${Math.floor(100000 + Math.random()*900000)}`,
+  amount: 0
+})
 
-// --- 2. Logic ---
+// =========================
+// AUTO TOTAL
+// =========================
+watch(lineItems, (items)=>{
+  const total = items.reduce((sum,i)=> sum + (i.qty * i.unitPrice),0)
+  formData.value.amount = total
+},{deep:true, immediate:true})
 
-// Auto-calculate Total Amount when items change
-watch(lineItems, (newItems) => {
-  const total = newItems.reduce((sum, item) => sum + (item.qty * item.unitPrice), 0);
-  formData.value.amount = total;
-}, { deep: true, immediate: true });
-
+// =========================
 const addLineItem = () => {
-  lineItems.value.push({ sku: '', description: '', qty: 1, unitPrice: 0 });
-};
+  lineItems.value.push({ sku:'', description:'', qty:1, unitPrice:0 })
+}
 
-const removeLineItem = (index: number) => {
-  if (lineItems.value.length > 1) {
-    lineItems.value.splice(index, 1);
+const removeLineItem = (idx:number)=>{
+  if(lineItems.value.length>1){
+    lineItems.value.splice(idx,1)
   }
-};
+}
 
-const generatedCaseId = computed(() => `CASE-${formData.value.poNumber}`);
+// =========================
+// ⭐ PAYLOAD ตรง curl
+// =========================
+const payloadPreview = computed(()=>({
 
-// Construct Payload structure matching Swagger
-// ใน CaseIngestView.vue
+  reference_type: "ERP_PO",
+  reference_id: formData.value.poNumber,
 
-const payloadPreview = computed(() => ({
-  case_id: generatedCaseId.value,
-  domain: "procurement",
-  payload: {
-    po_number: formData.value.poNumber,
-    
-    // 🔥 ส่งไปทุก Key ที่เป็นไปได้ เพื่อดักทาง Backend
-    vendor_name: formData.value.vendorName, 
-    vendor_id: formData.value.vendorName, 
-    vendor: formData.value.vendorName, 
-    supplier: formData.value.vendorName,
-    
-    amount_total: formData.value.amount,
-    currency: "THB",
-    description: formData.value.description,
-    issue_date: formData.value.date,
-    line_items: lineItems.value.map(item => ({
-      sku: item.sku,
-      item_desc: item.description,
-      quantity: item.qty,
-      unit_price: item.unitPrice,
-      total_price: item.qty * item.unitPrice
-    }))
+  entity_id: formData.value.vendorId,
+  entity_type: "VENDOR",
+
+  domain: "PROCUREMENT",
+  currency: "THB",
+  amount_total: formData.value.amount,
+
+  line_items: lineItems.value.map((item,idx)=>({
+    source_line_ref: String(idx+1),
+    sku: item.sku,
+    item_name: item.description,
+    description: item.description,
+    quantity: item.qty,
+    uom: "set",
+    unit_price: item.unitPrice,
+    currency: "THB"
+  }))
+}))
+
+// =========================
+// SUBMIT
+// =========================
+async function handleSubmit(){
+  isSubmitting.value = true
+
+  try{
+    console.log("POST ingest-from-po:", payloadPreview.value)
+
+    const res = await caseApi.ingestFromPO(payloadPreview.value)
+
+    const caseId = res?.case_id || res?.data?.case_id
+
+    addToast('success','Case Created',`Case ${caseId}`)
+
+    if(caseId){
+      router.push(`/cases/${caseId}`)
+    }else{
+      router.push('/cases')
+    }
+
+  }catch(err:any){
+    console.error(err)
+
+    addToast(
+      'error',
+      'Ingestion Failed',
+      err?.response?.data?.detail || err.message || 'backend error'
+    )
   }
-}));
-
-async function handleSubmit() {
-  isSubmitting.value = true;
-  try {
-    console.log('Submitting Payload:', payloadPreview.value);
-    await caseApi.ingest(payloadPreview.value);
-    
-    // ✅ เรียกใช้ Toast แบบสวยงาม
-    addToast('success', 'Ingestion Successful', `Case ID: ${generatedCaseId.value} has been created.`);
-    
-    router.push('/cases'); 
-  } catch (error: any) {
-    console.error('Ingest Error Details:', error);
-    
-    // ❌ Error Toast
-    addToast('error', 'Ingestion Failed', error.message || 'Please check backend connection.');
-  } finally {
-    isSubmitting.value = false;
+  finally{
+    isSubmitting.value=false
   }
 }
 </script>
+
 
 <template>
   <div class="max-w-6xl mx-auto animate-enter pb-20">

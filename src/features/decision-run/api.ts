@@ -1,30 +1,34 @@
 // src/features/decision-run/api.ts
 import { http } from '@/lib/http'
-import type {
-  CaseGroupsResponse,
-  GroupEvidenceResponse,
-  GroupRulesResponse,
-} from './types'
+import type { CaseGroupsResponse, GroupRulesResponse, GroupEvidenceResponse } from './types'
+
+export type DocumentPageResponse = {
+  document_id: string
+  contract_id?: string | null
+  file_name?: string | null
+  page: number
+  page_id?: string | null
+  page_text?: string | null
+  pdf_url?: string | null
+  image_url?: string | null
+  text_blocks?: any[]
+}
 
 export const decisionRunApi = {
-  // GET /cases/{case_id}/groups
-  async getCaseGroups(caseId: string): Promise<CaseGroupsResponse> {
-    return await http.get(`/api/v1/cases/${caseId}/groups`)
+  getCaseGroups(caseId: string): Promise<CaseGroupsResponse> {
+    return http.get(`/api/v1/cases/${caseId}/groups`)
   },
 
-  // GET /groups/{group_id}/rules
-  // จากตัวอย่างของคุณ path เป็น /api/v1/groups/groups/{groupId}/rules
-  async getGroupRules(groupId: string): Promise<GroupRulesResponse> {
-    return await http.get(`/api/v1/groups/groups/${groupId}/rules`)
+  getGroupRules(groupId: string): Promise<GroupRulesResponse> {
+    return http.get(`/api/v1/groups/${groupId}/rules`)
   },
 
-  // GET /groups/{group_id}/evidence
-  async getGroupEvidence(groupId: string): Promise<GroupEvidenceResponse> {
-    return await http.get(`/api/v1/groups/groups/${groupId}/evidence`)
+  getGroupEvidence(groupId: string): Promise<GroupEvidenceResponse> {
+    return http.get(`/api/v1/groups/${groupId}/evidence`)
   },
 
-  // PDF page endpoint (ใช้กับ iframe/img/pdf viewer)
-  getDocumentPageUrl(documentId: string, page: number) {
-    return `/api/v1/documents/${documentId}/pages/${page}`
+  // ✅ backend คืน JSON มี pdf_url
+  getDocumentPage(documentId: string, page: number): Promise<DocumentPageResponse> {
+    return http.get(`/api/v1/documents/${documentId}/pages-no/${page}`)
   },
 }
