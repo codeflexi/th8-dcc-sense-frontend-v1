@@ -4,7 +4,6 @@ import { useDecisionRunStore } from '@/features/decision-run/store'
 import DecisionWhyPanel from './components/DecisionWhyPanel.vue'
 import DecisionEvidencePanel from './components/EvidenceCard.vue'
 
-
 const props = defineProps<{ caseId: string }>()
 
 const store = useDecisionRunStore()
@@ -51,7 +50,6 @@ const overallRisk = computed(() => {
   if (levels.some(l => l === 'MEDIUM' || l === 'MED')) return 'MEDIUM'
   return 'LOW'
 })
-
 
 const recommendation = computed(() => {
   // CFO: ถ้ามี REVIEW อย่างน้อย 1 → REVIEW
@@ -104,11 +102,7 @@ const passedRules = computed(() =>
   (store.activeRules || []).filter(r => String(r.result).toUpperCase() === 'PASS')
 )
 
-
-
 const hasBlockingIssues = computed(() => failedRules.value.length > 0)
-
-
 
 /* ===============================
  * UI Helpers
@@ -152,76 +146,74 @@ function variancePct(po?: number, baseline?: number) {
 
       <!-- ================= KPI STRIP (CFO) ================= -->
 
-
-      
       <div class="grid grid-cols-1 md:grid-cols-6 gap-3 mb-6">
 
         <!-- OVERALL CASE RISK -->
-<div
-  class="md:col-span-2 rounded-xl p-4 shadow-sm border-2"
-  :class="
-    caseHeader.risk === 'HIGH'
-      ? 'bg-rose-50 border-rose-200'
-      : caseHeader.risk === 'MEDIUM'
-      ? 'bg-amber-50 border-amber-200'
-      : 'bg-emerald-50 border-emerald-200'
-  "
->
-  <div class="flex items-start justify-between">
-    <div>
-      <div class="text-[11px] font-bold uppercase tracking-wider"
-        :class="
-          caseHeader.risk === 'HIGH'
-            ? 'text-rose-700'
-            : caseHeader.risk === 'MEDIUM'
-            ? 'text-amber-700'
-            : 'text-emerald-700'
-        "
-      >
-        Overall Case Risk
-      </div>
-
-      <div class="mt-2 flex items-center gap-2">
-        <span
-          class="px-3 py-1.5 rounded-full text-xs font-extrabold border"
-          :class="riskBadge(caseHeader.risk)"
+        <div
+          class="md:col-span-2 rounded-xl p-4 shadow-sm border-2"
+          :class="
+            caseHeader.risk === 'HIGH'
+              ? 'bg-rose-50 border-rose-200'
+              : caseHeader.risk === 'MEDIUM'
+              ? 'bg-amber-50 border-amber-200'
+              : 'bg-emerald-50 border-emerald-200'
+          "
         >
-          {{ caseHeader.risk }}
-        </span>
+          <div class="flex items-start justify-between">
+            <div>
+              <div class="text-[11px] font-bold uppercase tracking-wider"
+                :class="
+                  caseHeader.risk === 'HIGH'
+                    ? 'text-rose-700'
+                    : caseHeader.risk === 'MEDIUM'
+                    ? 'text-amber-700'
+                    : 'text-emerald-700'
+                "
+              >
+                Overall Case Risk
+              </div>
 
-        <span class="text-sm font-bold text-slate-800">
-          {{ caseHeader.message }}
-        </span>
-      </div>
+              <div class="mt-2 flex items-center gap-2">
+                <span
+                  class="px-3 py-1.5 rounded-full text-xs font-extrabold border"
+                  :class="riskBadge(caseHeader.risk)"
+                >
+                  {{ caseHeader.risk }}
+                </span>
 
-      <div class="mt-2 text-xs"
-        :class="
-          caseHeader.autoApprovable
-            ? 'text-emerald-700'
-            : 'text-rose-700'
-        "
-      >
-        {{ caseHeader.autoApprovable
-          ? 'This case can be auto-approved'
-          : 'This case cannot be auto-approved'
-        }}
-      </div>
-    </div>
+                <span class="text-sm font-bold text-slate-800">
+                  {{ caseHeader.message }}
+                </span>
+              </div>
 
-    <div
-      class="h-9 w-9 rounded-lg flex items-center justify-center font-black"
-      :class="
-        caseHeader.risk === 'HIGH'
-          ? 'bg-rose-600 text-white'
-          : caseHeader.risk === 'MEDIUM'
-          ? 'bg-amber-500 text-white'
-          : 'bg-emerald-600 text-white'
-      "
-    >
-      !
-    </div>
-  </div>
-</div>
+              <div class="mt-2 text-xs"
+                :class="
+                  caseHeader.autoApprovable
+                    ? 'text-emerald-700'
+                    : 'text-rose-700'
+                "
+              >
+                {{ caseHeader.autoApprovable
+                  ? 'This case can be auto-approved'
+                  : 'This case cannot be auto-approved'
+                }}
+              </div>
+            </div>
+
+            <div
+              class="h-9 w-9 rounded-lg flex items-center justify-center font-black"
+              :class="
+                caseHeader.risk === 'HIGH'
+                  ? 'bg-rose-600 text-white'
+                  : caseHeader.risk === 'MEDIUM'
+                  ? 'bg-amber-500 text-white'
+                  : 'bg-emerald-600 text-white'
+              "
+            >
+              !
+            </div>
+          </div>
+        </div>
 
         <div class=" md:col-span-1 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
           <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Amount</div>
@@ -243,11 +235,6 @@ function variancePct(po?: number, baseline?: number) {
           <div class="text-xs text-slate-500">Evidence-backed</div>
         </div>
 
-        <!-- <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-          <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Items to Review</div>
-          <div class="mt-1 text-2xl font-extrabold font-mono text-slate-900">{{ itemsToReview }}</div>
-          <div class="text-xs text-slate-500">out of {{ store.groups?.length || 0 }} line items</div>
-        </div> -->
       </div>
 
       <!-- ================= MAIN GRID ================= -->
@@ -277,132 +264,224 @@ function variancePct(po?: number, baseline?: number) {
               Loading groups…
             </div>
 
-           <!-- CARD LIST VERSION -->
-<div v-else class="space-y-5 p-6">
-  <div
-    v-for="g in store.groups || []"
-    :key="g.group_id"
-    @click="store.selectGroup(g.group_id)"
-    class="bg-white border border-slate-200 rounded-2xl p-5 cursor-pointer transition shadow-sm hover:shadow-md"
-    :class="store.activeGroupId === g.group_id ? 'ring-8 ring-brand-500 border-brand-200' : ''"
-  >
-    <div class="flex items-start justify-between gap-4">
-
-      <!-- LEFT -->
-      <div class="min-w-0 flex-1">
-
-        <!-- title -->
-        <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0">
-            <div class="font-extrabold text-slate-900 truncate">
-              {{ g?.sku?.item_name || g?.sku?.name || '—' }}
-            </div>
-
-            <div class="text-xs text-slate-500 mt-0.5">
-              SKU <span class="font-mono">{{ g?.sku?.sku || '—' }}</span>
-              <span class="mx-2 text-slate-300">•</span>
-              Qty {{ g?.sku?.quantity ?? '—' }}
-              <span v-if="g?.sku?.source_line_ref">
-                <span class="mx-2 text-slate-300">•</span>
-                line {{ g.sku.source_line_ref }}
-              </span>
-            </div>
-          </div>
-
-          <!-- selected badge -->
-          <div
-            v-if="store.activeGroupId === g.group_id"
-            class="w-7 h-7 rounded-lg bg-brand-50 border border-brand-200 flex items-center justify-center font-bold text-brand-700"
-          >
-            ✓
-          </div>
-        </div>
-
-        <!-- badges -->
-        <div class="mt-3 flex flex-wrap gap-2">
-          <span class="px-2 py-0.5 rounded border text-[11px] font-bold"
-            :class="riskBadge(g.risk_level)">
-            {{ String(g.risk_level || '—').toUpperCase() }}
-          </span>
-
-          <span class="px-2 py-0.5 rounded border text-[11px] font-bold"
-            :class="decisionBadge(g.decision)">
-            {{ String(g.decision || '—').toUpperCase() }}
-          </span>
-        </div>
-
-        <!-- price row -->
-        <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-
-          <!-- po unit -->
-          <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
-            <div class="text-[10px] font-bold uppercase text-slate-400">PO Unit</div>
-            <div class="font-mono font-extrabold text-slate-900 mt-1">
-              {{ fmt(g?.sku?.unit_price?.value || 0) }}
-            </div>
-          </div>
-
-          <!-- baseline -->
-          <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
-            <div class="text-[10px] font-bold uppercase text-slate-400">Baseline</div>
-            <div class="font-mono font-extrabold text-slate-900 mt-1">
-              {{ fmt(g?.baseline?.value || 0) }}
-            </div>
-          </div>
-
-          <!-- variance -->
-          <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
-            <div class="text-[10px] font-bold uppercase text-slate-400">Variance</div>
-
-            <template v-if="variancePct(g?.sku?.unit_price?.value, g?.baseline?.value) !== null">
+            <!-- CARD LIST VERSION -->
+            <div v-else class="space-y-3 p-6">
               <div
-                class="font-mono font-extrabold mt-1"
-                :class="(variancePct(g?.sku?.unit_price?.value, g?.baseline?.value) || 0) > 0 ? 'text-rose-600' : 'text-emerald-700'"
+                v-for="g in store.groups || []"
+                :key="g.group_id"
+                @click="store.selectGroup(g.group_id)"
+                class="rounded-2xl border overflow-hidden cursor-pointer transition bg-white shadow-sm hover:shadow-md"
+                :class="[
+                  store.activeGroupId === g.group_id ? 'ring-8 ring-brand-500 border-brand-200' : '',
+                  (String(g?.decision || '').toUpperCase() === 'REVIEW' && ['HIGH','CRITICAL'].includes(String(g?.risk_level || '').toUpperCase()))
+                    ? 'border-rose-200 bg-rose-50/60'
+                    : (String(g?.decision || '').toUpperCase() === 'REVIEW'
+                        ? 'border-amber-200 bg-amber-50/60'
+                        : 'border-slate-200 bg-white'
+                      )
+                ]"
               >
-                {{ (variancePct(g?.sku?.unit_price?.value, g?.baseline?.value) || 0).toFixed(2) }}%
+                <div class="flex">
+                  <!-- Severity rail -->
+                  <div
+                    class="w-1.5 shrink-0"
+                    :class="(String(g?.decision || '').toUpperCase() === 'PASS')
+                      ? 'bg-emerald-500'
+                      : (['HIGH','CRITICAL'].includes(String(g?.risk_level || '').toUpperCase())
+                          ? 'bg-rose-600'
+                          : 'bg-amber-500'
+                        )"
+                  />
+
+                  <div class="flex-1 p-5">
+                    <div class="flex items-start justify-between gap-4">
+                      <!-- LEFT -->
+                      <div class="min-w-0 flex-1">
+                        <!-- Title -->
+                        <div class="flex items-start justify-between gap-3">
+                          <div class="min-w-0">
+                            <div class="flex items-center gap-2 min-w-0">
+                              <!-- Severity icon -->
+                              <span
+                                class="inline-flex h-8 w-8 items-center justify-center rounded-xl text-white font-black"
+                                :class="(String(g?.decision || '').toUpperCase() === 'PASS')
+                                  ? 'bg-emerald-600'
+                                  : (['HIGH','CRITICAL'].includes(String(g?.risk_level || '').toUpperCase())
+                                      ? 'bg-rose-600'
+                                      : 'bg-amber-500'
+                                    )"
+                                aria-hidden="true"
+                              >
+                                <span v-if="String(g?.decision || '').toUpperCase() === 'PASS'">✓</span>
+                                <span v-else>!</span>
+                              </span>
+
+                              <div class="min-w-0">
+                                <div class="font-extrabold text-slate-900 truncate">
+                                  {{ g?.sku?.item_name || g?.sku?.name || '—' }}
+                                </div>
+                                <div class="text-xs text-slate-500 mt-0.5">
+                                  SKU <span class="font-mono">{{ g?.sku?.sku || '—' }}</span>
+                                  <span class="mx-2 text-slate-300">•</span>
+                                  Qty {{ g?.sku?.quantity ?? '—' }}
+                                  <span v-if="g?.sku?.source_line_ref">
+                                    <span class="mx-2 text-slate-300">•</span>
+                                    line {{ g.sku.source_line_ref }}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <!-- Active check -->
+                          <div
+                            v-if="store.activeGroupId === g.group_id"
+                            class="w-7 h-7 rounded-lg bg-brand-50 border border-brand-200 flex items-center justify-center font-black text-brand-700"
+                            title="Selected"
+                          >
+                            ✓
+                          </div>
+                        </div>
+
+                        <!-- Badges -->
+                        <div class="mt-3 flex flex-wrap items-center gap-2">
+                          <!-- Severity -->
+                          <span
+                            class="px-2.5 py-1 rounded-full border text-[11px] font-extrabold tracking-wide"
+                            :class="(String(g?.decision || '').toUpperCase() === 'PASS')
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : (['HIGH','CRITICAL'].includes(String(g?.risk_level || '').toUpperCase())
+                                  ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                  : 'bg-amber-50 text-amber-700 border-amber-200'
+                                )"
+                          >
+                            {{
+                              (String(g?.decision || '').toUpperCase() === 'PASS')
+                                ? 'PASS'
+                                : (['HIGH','CRITICAL'].includes(String(g?.risk_level || '').toUpperCase()) ? 'BLOCKING' : 'WARNING')
+                            }}
+                          </span>
+
+                          <!-- Risk -->
+                          <span
+                            class="px-2 py-0.5 rounded border text-[11px] font-bold"
+                            :class="riskBadge(g.risk_level)"
+                          >
+                            {{ String(g.risk_level || '—').toUpperCase() }}
+                          </span>
+
+                          <!-- Decision -->
+                          <span
+                            class="px-2 py-0.5 rounded border text-[11px] font-bold"
+                            :class="decisionBadge(g.decision)"
+                          >
+                            {{ String(g.decision || '—').toUpperCase() }}
+                          </span>
+
+                          <!-- Confidence (if present) -->
+                          <span
+                            v-if="g?.confidence != null"
+                            class="px-2 py-0.5 rounded border text-[11px] font-bold bg-white text-slate-600 border-slate-200"
+                            title="Model confidence"
+                          >
+                            {{ Math.round((g.confidence || 0) * 100) }}%
+                          </span>
+                        </div>
+
+                        <!-- KPI row -->
+                        <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <!-- PO Unit -->
+                          <div class="rounded-xl p-3 bg-white/70 border border-slate-200">
+                            <div class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">PO Unit</div>
+                            <div class="mt-1 font-mono font-extrabold text-slate-900">
+                              {{ fmt(g?.sku?.unit_price?.value || 0) }}
+                            </div>
+                            <div class="text-[10px] text-slate-400 mt-0.5">{{ g?.sku?.unit_price?.currency || currency }}</div>
+                          </div>
+
+                          <!-- Baseline -->
+                          <div class="rounded-xl p-3 bg-white/70 border border-slate-200">
+                            <div class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Baseline</div>
+                            <div class="mt-1 font-mono font-extrabold text-slate-900">
+                              {{ fmt(g?.baseline?.value || 0) }}
+                            </div>
+                            <div class="text-[10px] text-slate-400 mt-0.5">{{ g?.baseline?.currency || currency }}</div>
+                          </div>
+
+                          <!-- Variance -->
+                          <div class="rounded-xl p-3 bg-white/70 border border-slate-200">
+                            <div class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Variance</div>
+
+                            <template v-if="variancePct(g?.sku?.unit_price?.value, g?.baseline?.value) !== null">
+                              <div
+                                class="mt-1 font-mono font-extrabold"
+                                :class="(variancePct(g?.sku?.unit_price?.value, g?.baseline?.value) || 0) > 0
+                                  ? 'text-rose-600'
+                                  : 'text-emerald-700'"
+                              >
+                                {{ (variancePct(g?.sku?.unit_price?.value, g?.baseline?.value) || 0).toFixed(2) }}%
+                              </div>
+                            </template>
+                            <template v-else>
+                              <div class="mt-1 text-slate-400 font-extrabold">—</div>
+                            </template>
+
+                            <div class="text-[10px] text-slate-400 mt-0.5">baseline compare</div>
+                          </div>
+
+                          <!-- Decision -->
+                          <div class="rounded-xl p-3 bg-white/70 border border-slate-200 flex flex-col justify-center">
+                            <div class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Decision</div>
+                            <span
+                              class="mt-1 inline-flex items-center px-2.5 py-1 rounded-full border text-xs font-extrabold w-fit"
+                              :class="decisionBadge(g.decision)"
+                            >
+                              {{ String(g.decision || '—').toUpperCase() }}
+                            </span>
+                          </div>
+                        </div>
+
+                        <!-- Hint row (only when REVIEW) -->
+                        <div
+                          v-if="String(g?.decision || '').toUpperCase() === 'REVIEW'"
+                          class="mt-3 flex items-start gap-2 text-xs"
+                          :class="['HIGH','CRITICAL'].includes(String(g?.risk_level || '').toUpperCase()) ? 'text-rose-700' : 'text-amber-700'"
+                        >
+                          <span class="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-lg bg-white border border-slate-200 font-black">
+                            !
+                          </span>
+                          <div class="text-slate-600">
+                            Manual review required. Open WHY to see failed checks and evidence.
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- RIGHT ACTION -->
+                      <div class="shrink-0 flex flex-col items-end gap-2">
+                        <button
+                          class="px-4 py-2 rounded-xl text-xs font-extrabold transition"
+                          :class="store.activeGroupId === g.group_id
+                            ? 'bg-slate-900 text-white hover:bg-slate-800'
+                            : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'"
+                          @click.stop="store.selectGroup(g.group_id); store.setRightTab('WHY')"
+                        >
+                          Open WHY
+                        </button>
+
+                        <div class="text-[11px] text-slate-400 font-mono">
+                          group {{ String(g.group_id).slice(0, 8) }}…
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </template>
-            <template v-else>
-              <div class="text-slate-400 font-bold mt-1">—</div>
-            </template>
 
-            <div class="text-[10px] text-slate-400 mt-0.5">baseline compare</div>
-          </div>
-
-          <!-- decision -->
-          <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col justify-center items-start">
-            <div class="text-[10px] font-bold uppercase text-slate-400">Decision</div>
-            <span
-              class="inline-flex items-center px-2.5 py-1 rounded-full border text-xs font-bold mt-1"
-              :class="decisionBadge(g.decision)"
-            >
-              {{ String(g.decision || '—').toUpperCase() }}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <!-- RIGHT ACTION -->
-      <div class="flex flex-col justify-between items-end shrink-0 gap-3">
-        <button
-          class="px-4 py-2 rounded-lg text-xs font-bold transition"
-          :class="store.activeGroupId === g.group_id
-            ? 'bg-slate-900 text-white hover:bg-slate-800'
-            : 'bg-white border border-slate-200 hover:bg-slate-50'"
-          @click.stop="store.selectGroup(g.group_id); store.setRightTab('WHY')"
-        >
-          Open WHY
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- empty -->
-  <div v-if="!(store.groups || []).length" class="py-16 text-center text-sm text-slate-500">
-    No groups found.
-  </div>
-</div>
-
+              <!-- empty -->
+              <div v-if="!(store.groups || []).length" class="py-16 text-center text-sm text-slate-500">
+                No groups found.
+              </div>
+            </div>
 
             <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
               <div class="text-xs text-slate-500">CFO view: focus on exception first</div>
@@ -419,71 +498,67 @@ function variancePct(po?: number, baseline?: number) {
         ========================================================== -->
         <div class="col-span-12 lg:col-span-5 space-y-4">
 
-        <!-- ================= DRILLDOWN PANEL ================= -->
-<div class="border border-slate-200 rounded-2xl overflow-hidden bg-white">
+          <!-- ================= DRILLDOWN PANEL ================= -->
+          <div class="border border-slate-200 rounded-2xl overflow-hidden bg-white">
 
-  <!-- ================= TAB STRIP ================= -->
-  <div class="flex items-center gap-1 px-2 pt-2 bg-slate-50 border-b border-slate-200">
-    <button
-      @click="store.setRightTab('WHY')"
-      class="px-4 py-2 text-xs font-extrabold rounded-t-lg transition"
-      :class="store.rightTab === 'WHY'
-        ? 'bg-white text-slate-900 border border-slate-200 border-b-white'
-        : 'text-slate-500 hover:text-slate-800'"
-    >
-      WHY
-    </button>
+            <!-- ================= TAB STRIP ================= -->
+            <div class="flex items-center gap-1 px-2 pt-2 bg-slate-50 border-b border-slate-200">
+              <button
+                @click="store.setRightTab('WHY')"
+                class="px-4 py-2 text-xs font-extrabold rounded-t-lg transition"
+                :class="store.rightTab === 'WHY'
+                  ? 'bg-white text-slate-900 border border-slate-200 border-b-white'
+                  : 'text-slate-500 hover:text-slate-800'"
+              >
+                WHY
+              </button>
 
-    <button
-      @click="store.setRightTab('EVIDENCE')"
-      class="px-4 py-2 text-xs font-extrabold rounded-t-lg flex items-center gap-2 transition"
-      :class="store.rightTab === 'EVIDENCE'
-        ? 'bg-white text-slate-900 border border-slate-200 border-b-white'
-        : 'text-slate-500 hover:text-slate-800'"
-    >
-      Evidence
-      <span class="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-slate-200 text-slate-700">
-        {{ store.activeEvidences.length }}
-      </span>
-    </button>
-  </div>
+              <button
+                @click="store.setRightTab('EVIDENCE')"
+                class="px-4 py-2 text-xs font-extrabold rounded-t-lg flex items-center gap-2 transition"
+                :class="store.rightTab === 'EVIDENCE'
+                  ? 'bg-white text-slate-900 border border-slate-200 border-b-white'
+                  : 'text-slate-500 hover:text-slate-800'"
+              >
+                Evidence
+                <span class="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-slate-200 text-slate-700">
+                  {{ store.activeEvidences.length }}
+                </span>
+              </button>
+            </div>
 
-  <!-- ================= CONTENT ================= -->
-  <div class="p-5 space-y-4">
+            <!-- ================= CONTENT ================= -->
+            <div class="p-5 space-y-4">
 
-    <!-- ================= WHY TAB ================= -->
-    <template v-if="store.rightTab === 'WHY'">
-      <DecisionWhyPanel />
-    </template>
+              <!-- ================= WHY TAB ================= -->
+              <template v-if="store.rightTab === 'WHY'">
+                <DecisionWhyPanel />
+              </template>
 
-    <!-- ================= EVIDENCE TAB ================= -->
-    <template v-else>
-      <!-- ไม่มี evidence -->
-<div
-  v-if="!store.activeEvidences.length"
-  class="p-6 text-center text-sm text-slate-500"
->
-  No evidence for this group.
-</div>
+              <!-- ================= EVIDENCE TAB ================= -->
+              <template v-else>
+                <!-- ไม่มี evidence -->
+                <div
+                  v-if="!store.activeEvidences.length"
+                  class="p-6 text-center text-sm text-slate-500"
+                >
+                  No evidence for this group.
+                </div>
 
-<!-- มี evidence -->
-<DecisionEvidencePanel
-  v-for="ev in store.activeEvidences"
-  :key="ev.evidence_id"
-  :evidence="ev"
-  :document="store.activeDocuments.find(d => d.document_id === ev.document_id)"
-/>
+                <!-- มี evidence -->
+                <DecisionEvidencePanel
+                  v-for="ev in store.activeEvidences"
+                  :key="ev.evidence_id"
+                  :evidence="ev"
+                  :document="store.activeDocuments.find(d => d.document_id === ev.document_id)"
+                />
+              </template>
 
-    </template>
-
-  </div>
-</div>
+            </div>
+          </div>
 
         </div>
 
-
-
-        
       </div>
 
     </div>

@@ -141,7 +141,7 @@ async function handleSubmit(){
           <div class="grid grid-cols-2 gap-4">
              <div class="col-span-2">
                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Vendor Name</label>
-               <input v-model="formData.vendorName" type="text" class="w-full p-2 text-sm border border-slate-300 rounded focus:border-primary focus:outline-none transition">
+               <input v-model="formData.vendorId" type="text" class="w-full p-2 text-sm border border-slate-300 rounded focus:border-primary focus:outline-none transition">
              </div>
 
              <div>
