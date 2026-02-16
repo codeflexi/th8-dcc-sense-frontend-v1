@@ -83,7 +83,7 @@ const navItems = computed(() => [
           TH8
         </div>
         <div>
-          <h1 class="text-sm font-bold text-white leading-tight tracking-wide">Decision<br/>Control Center</h1>
+          <h1 class="text-sm font-bold text-white leading-tight tracking-wide">SENSE-Decision <br/>Control Center</h1>
         </div>
       </div>
       <p class="text-[10px] text-slate-500 mt-2 font-mono">v1.0.0 • Enterprise</p>
