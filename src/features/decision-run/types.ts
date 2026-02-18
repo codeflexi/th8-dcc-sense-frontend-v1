@@ -47,6 +47,10 @@ export interface CaseGroup {
   reasons?: GroupReason[]
   baseline?: GroupBaseline
   evidence_refs?: GroupEvidenceRefs
+
+  // optional: used only for finance_ap normalization (does not affect procurement)
+  __domain?: string
+  raw_trace?: any
 }
 
 export interface CaseGroupsResponse {
@@ -126,4 +130,29 @@ export interface GroupEvidenceResponse {
   group_id: string
   documents: EvidenceDocument[]
   evidences: EvidenceItem[]
+}
+
+/* ===============================
+ * finance_ap decision-results types
+ * =============================== */
+
+export interface FinanceDecisionResult {
+  result_id?: string
+  run_id?: string
+  group_id: string
+  decision_status?: string
+  risk_level?: string
+  confidence?: number
+  reason_codes?: string[]
+  fail_actions?: any[]
+  trace?: any
+  evidence_refs?: GroupEvidenceRefs
+  created_at?: string
+}
+
+export interface FinanceDecisionResultsResponse {
+  case_id: string
+  run_id: string
+  count: number
+  results: FinanceDecisionResult[]
 }

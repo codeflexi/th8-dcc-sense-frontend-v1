@@ -1,6 +1,11 @@
 // src/features/decision-run/api.ts
 import { http } from '@/lib/http'
-import type { CaseGroupsResponse, GroupRulesResponse, GroupEvidenceResponse } from './types'
+import type {
+  CaseGroupsResponse,
+  GroupRulesResponse,
+  GroupEvidenceResponse,
+  FinanceDecisionResultsResponse,
+} from './types'
 
 export type DocumentPageResponse = {
   document_id: string
@@ -25,6 +30,11 @@ export const decisionRunApi = {
 
   getGroupEvidence(groupId: string): Promise<GroupEvidenceResponse> {
     return http.get(`/api/v1/groups/${groupId}/evidence`)
+  },
+
+  // finance_ap: decision results (3-way matching trace)
+  getDecisionResults(caseId: string, runId: string): Promise<FinanceDecisionResultsResponse> {
+    return http.get(`/api/v1/cases/${caseId}/decision-results`, { params: { run_id: runId } })
   },
 
   // ✅ backend คืน JSON มี pdf_url

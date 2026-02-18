@@ -3,19 +3,28 @@ import { computed, watch } from 'vue'
 import { useDecisionRunStore } from '@/features/decision-run/store'
 import DecisionWhyPanel from './components/DecisionWhyPanel.vue'
 import DecisionEvidencePanel from './components/EvidenceCard.vue'
+import { useRoute } from 'vue-router'
 
 const props = defineProps<{ caseId: string }>()
 
+const route = useRoute()
 const store = useDecisionRunStore()
 
-watch(
-  () => props.caseId,
-  (id) => {
-    if (!id) return
-    store.loadCase(id)
-  },
-  { immediate: true }
-)
+const caseId = computed(() => String(route.params.caseId || ''))
+// watch(
+//   () => props.caseId,
+//   (id) => {
+//     if (!id) return
+//     store.loadCase(id)
+//   },
+//   { immediate: true }
+// )
+
+watch(caseId, (id) => {
+  if (!id) return
+  store.loadCase(id)
+}, { immediate: true })
+
 
 /* ===============================
  * Derived KPIs (จาก groups)
@@ -27,37 +36,34 @@ const totalAmount = computed(() => {
 
 const currency = computed(() => {
   const first = store.groups?.[0]
-  return first?.sku?.total_price?.currency || first?.sku?.unit_price?.currency || 'THB'
+  return first?.sku?.total_price?.currency || first?.sku?.unit_price?.currency || first?.baseline?.currency || 'THB'
 })
 
 const itemsToReview = computed(() => {
   return (store.groups || []).filter(g => String(g.decision).toUpperCase() === 'REVIEW').length
 })
 
-// const overallRisk = computed(() => {
-//   const list = store.groups || []
-//   const hasHigh = list.some(g => String(g.risk_level).toUpperCase() === 'HIGH' || String(g.risk_level).toUpperCase() === 'CRITICAL')
-//   const hasMed = list.some(g => String(g.risk_level).toUpperCase() === 'MEDIUM')
-//   return hasHigh ? 'HIGH' : hasMed ? 'MEDIUM' : 'LOW'
-// })
-
 const overallRisk = computed(() => {
-  const levels = (store.groups || []).map(g =>
-    String(g.risk_level || '').toUpperCase()
-  )
+  const list = store.groups || []
+  if (!list.length) return 'LOW'
 
-  if (levels.some(l => l === 'CRITICAL' || l === 'HIGH')) return 'HIGH'
-  if (levels.some(l => l === 'MEDIUM' || l === 'MED')) return 'MEDIUM'
-  return 'LOW'
+  // score-based (stable): CRITICAL > HIGH > MEDIUM > LOW
+  const score = (x: string) => (x === 'CRITICAL' ? 4 : x === 'HIGH' ? 3 : x === 'MEDIUM' || x === 'MED' ? 2 : x === 'LOW' ? 1 : 0)
+  const max = Math.max(...list.map(g => score(String(g.risk_level || '').toUpperCase())))
+  return max === 4 ? 'CRITICAL' : max === 3 ? 'HIGH' : max === 2 ? 'MEDIUM' : 'LOW'
 })
 
-const recommendation = computed(() => {
-  // CFO: ถ้ามี REVIEW อย่างน้อย 1 → REVIEW
-  return itemsToReview.value > 0 ? 'REVIEW' : 'PASS'
+const overallDecision = computed(() => {
+  const list = store.groups || []
+  if (!list.length) return '—'
+
+  // CFO view: if any REVIEW => REVIEW else PASS
+  const hasReview = list.some(g => String(g.decision).toUpperCase() === 'REVIEW')
+  return hasReview ? 'REVIEW' : 'PASS'
 })
 
-const confidence = computed(() => {
-  // ใช้ค่า confidence ของ activeGroup เป็นหลัก ถ้าไม่มีให้เฉลี่ยแบบง่าย
+const overallConfidence = computed(() => {
+  // Use active group confidence if available, else avg
   if (store.activeGroup?.confidence != null) return Math.round((store.activeGroup.confidence || 0) * 100)
   const list = store.groups || []
   if (!list.length) return 0
@@ -80,29 +86,34 @@ const caseHeader = computed(() => {
   }
 })
 
-function ruleCardClass(result?: string) {
-  const x = String(result || '').toUpperCase()
+const firstGroup = computed(() => store.groups?.[0] || null)
 
-  if (x === 'FAIL') {
-    return 'border-rose-300 bg-rose-50/40'
-  }
+const vendorName = computed(() => {
+  const g:any = firstGroup.value
+  return g?.raw_trace?.inputs?.vendor_name
+    || g?.raw_trace?.explainability?.vendor
+    || 'Unknown vendor'
+})
 
-  if (x === 'PASS') {
-    return 'border-emerald-200 bg-emerald-50/40'
-  }
+const poNumber = computed(() => {
+  const g:any = firstGroup.value
+  return g?.raw_trace?.inputs?.po_number
+    || g?.raw_trace?.inputs?.po_no
+    || null
+})
 
-  return 'border-slate-200 bg-white'
-}
+const invoiceNumber = computed(() => {
+  const g:any = firstGroup.value
+  return g?.raw_trace?.inputs?.invoice_number
+    || g?.raw_trace?.inputs?.inv_no
+    || null
+})
 
-const failedRules = computed(() =>
-  (store.activeRules || []).filter(r => String(r.result).toUpperCase() === 'FAIL')
-)
-
-const passedRules = computed(() =>
-  (store.activeRules || []).filter(r => String(r.result).toUpperCase() === 'PASS')
-)
-
-const hasBlockingIssues = computed(() => failedRules.value.length > 0)
+const displayDoc = computed(()=>{
+  if(invoiceNumber.value) return `Invoice ${invoiceNumber.value}`
+  if(poNumber.value) return `PO ${poNumber.value}`
+  return `Case ${caseId.value}`
+})
 
 /* ===============================
  * UI Helpers
@@ -132,355 +143,333 @@ function severityBadge(sev?: string) {
   return 'bg-slate-50 text-slate-600 border-slate-200'
 }
 
+function ruleCardClass(result?: string) {
+  const x = String(result || '').toUpperCase()
+
+  if (x === 'FAIL') {
+    return 'border-rose-300 bg-rose-50/40'
+  }
+
+  if (x === 'PASS') {
+    return 'border-emerald-200 bg-emerald-50/40'
+  }
+
+  return 'border-slate-200 bg-white'
+}
+
 function variancePct(po?: number, baseline?: number) {
   const a = Number(po || 0)
   const b = Number(baseline || 0)
   if (!b) return null
   return ((a - b) / b) * 100
 }
+
+const failedRules = computed(() =>
+  (store.activeRules || []).filter(r => String(r.result).toUpperCase() === 'FAIL')
+)
+
+const passedRules = computed(() =>
+  (store.activeRules || []).filter(r => String(r.result).toUpperCase() === 'PASS')
+)
+
+const hasBlockingIssues = computed(() => failedRules.value.length > 0)
 </script>
 
 <template>
-  <div class="min-h-[calc(100vh-160px)] bg-slate-50">
+  <div class="min-h-screen bg-slate-50">
+
+    <!-- ================= HEADER ================= -->
+    <div class="border-b border-slate-200 bg-white">
+      <div class="max-w-7xl mx-auto px-6 py-6">
+        <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+
+          <div class="min-w-0">
+            <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              TH8 Sense · Decision Run
+            </div>
+
+            <div class="mt-1 text-2xl font-black text-slate-900">
+              
+               <div>
+        <!-- ⭐ document number -->
+        <div class="text-2xl font-extrabold text-slate-900">
+          {{ displayDoc }}
+        </div>
+
+        <!-- ⭐ vendor -->
+        <div class="text-sm text-slate-600 mt-1">
+          {{ vendorName }}
+        </div>
+      </div>
+            </div>
+
+            <div class="mt-2 flex flex-wrap items-center gap-2 text-sm">
+              <span
+                class="px-3 py-1 rounded-full border text-xs font-extrabold"
+                :class="decisionBadge(overallDecision)"
+              >
+                {{ String(overallDecision).toUpperCase() }}
+              </span>
+
+              <span
+                class="px-3 py-1 rounded-full border text-xs font-extrabold"
+                :class="riskBadge(caseHeader.risk)"
+              >
+                {{ String(caseHeader.risk).toUpperCase() }} RISK
+              </span>
+
+              <span class="text-slate-400">•</span>
+
+              <span class="text-slate-600">
+                {{ caseHeader.message }} 
+              </span>
+
+              <span class="text-slate-400">•</span>
+
+              <span class="text-slate-600">
+                Total {{ fmt(totalAmount) }} {{ currency }}
+              </span>
+
+              <span class="text-slate-400">•</span>
+
+              <span class="text-slate-600">
+                Confidence {{ overallConfidence }}%
+              </span>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <button
+              class="px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm font-bold hover:bg-slate-50"
+              @click="store.openEvidenceModal()"
+            >
+              Open Evidence ({{ store.activeEvidences.length }})
+            </button>
+
+            <button
+              class="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-bold hover:bg-slate-800"
+              :class="hasBlockingIssues ? 'bg-amber-600 hover:bg-amber-500' : ''"
+              @click="store.submitDecision('APPROVE')"
+            >
+              Approve
+            </button>
+
+            <button
+              class="px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm font-bold hover:bg-slate-50"
+              @click="store.submitDecision('REJECT')"
+            >
+              Reject
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= MAIN ================= -->
     <div class="max-w-7xl mx-auto px-6 py-6 pb-28">
 
-      <!-- ================= KPI STRIP (CFO) ================= -->
-
-      <div class="grid grid-cols-1 md:grid-cols-6 gap-3 mb-6">
-
-        <!-- OVERALL CASE RISK -->
-        <div
-          class="md:col-span-2 rounded-xl p-4 shadow-sm border-2"
-          :class="
-            caseHeader.risk === 'HIGH'
-              ? 'bg-rose-50 border-rose-200'
-              : caseHeader.risk === 'MEDIUM'
-              ? 'bg-amber-50 border-amber-200'
-              : 'bg-emerald-50 border-emerald-200'
-          "
-        >
-          <div class="flex items-start justify-between">
-            <div>
-              <div class="text-[11px] font-bold uppercase tracking-wider"
-                :class="
-                  caseHeader.risk === 'HIGH'
-                    ? 'text-rose-700'
-                    : caseHeader.risk === 'MEDIUM'
-                    ? 'text-amber-700'
-                    : 'text-emerald-700'
-                "
-              >
-                Overall Case Risk
-              </div>
-
-              <div class="mt-2 flex items-center gap-2">
-                <span
-                  class="px-3 py-1.5 rounded-full text-xs font-extrabold border"
-                  :class="riskBadge(caseHeader.risk)"
-                >
-                  {{ caseHeader.risk }}
-                </span>
-
-                <span class="text-sm font-bold text-slate-800">
-                  {{ caseHeader.message }}
-                </span>
-              </div>
-
-              <div class="mt-2 text-xs"
-                :class="
-                  caseHeader.autoApprovable
-                    ? 'text-emerald-700'
-                    : 'text-rose-700'
-                "
-              >
-                {{ caseHeader.autoApprovable
-                  ? 'This case can be auto-approved'
-                  : 'This case cannot be auto-approved'
-                }}
-              </div>
-            </div>
-
-            <div
-              class="h-9 w-9 rounded-lg flex items-center justify-center font-black"
-              :class="
-                caseHeader.risk === 'HIGH'
-                  ? 'bg-rose-600 text-white'
-                  : caseHeader.risk === 'MEDIUM'
-                  ? 'bg-amber-500 text-white'
-                  : 'bg-emerald-600 text-white'
-              "
-            >
-              !
-            </div>
-          </div>
-        </div>
-
-        <div class=" md:col-span-1 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-          <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Amount</div>
-          <div class="mt-1 text-2xl font-extrabold font-mono text-slate-900">{{ fmt(totalAmount) }}</div>
-          <div class="text-xs text-slate-400 font-bold">{{ currency }}</div>
-        </div>
-
-        <div class=" md:col-span-1bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-          <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Recommendation</div>
-          <div class="mt-1 text-2xl font-extrabold" :class="recommendation === 'REVIEW' ? 'text-rose-600' : 'text-emerald-700'">
-            {{ recommendation }}
-          </div>
-          <div class="text-xs text-slate-500">CFO exception-first view</div>
-        </div>
-
-        <div class="md:col-span-1 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-          <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Confidence</div>
-          <div class="mt-1 text-2xl font-extrabold font-mono text-slate-900">{{ confidence }}%</div>
-          <div class="text-xs text-slate-500">Evidence-backed</div>
-        </div>
-
-      </div>
-
-      <!-- ================= MAIN GRID ================= -->
       <div class="grid grid-cols-12 gap-6">
 
         <!-- =========================================================
-            LEFT: LINE ITEMS (CFO Table)
+            LEFT: LINE ITEMS
         ========================================================== -->
-        <div class="col-span-12 lg:col-span-7">
-          <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        <div class="col-span-12 lg:col-span-7 space-y-4">
+
+          <!-- ================= LIST ================= -->
+          <div class="border border-slate-200 rounded-2xl overflow-hidden bg-white">
 
             <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <div>
                 <div class="text-sm font-extrabold text-slate-900">Line Items</div>
-                <div class="text-xs text-slate-500 mt-0.5">Sorted by risk (highest first)</div>
+                <div class="text-xs text-slate-500 mt-1">
+                  Click an item to see WHY + Evidence
+                </div>
               </div>
 
               <div class="flex items-center gap-2">
-                <span class="text-xs font-bold text-slate-500">Risk:</span>
-                <span class="px-2.5 py-1 rounded-full text-xs font-bold border bg-white text-slate-600 border-slate-200">
-                  {{ overallRisk }}
+                <span class="text-xs text-slate-500">Groups</span>
+                <span class="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-black">
+                  {{ store.groups.length }}
                 </span>
               </div>
             </div>
 
-            <div v-if="store.loadingGroups" class="p-10 text-center text-sm text-slate-500">
-              Loading groups…
+            <div v-if="store.loadingGroups" class="p-6 text-center text-sm text-slate-500">
+              Loading groups...
             </div>
 
-            <!-- CARD LIST VERSION -->
-            <div v-else class="space-y-3 p-6">
-              <div
-                v-for="g in store.groups || []"
-                :key="g.group_id"
-                @click="store.selectGroup(g.group_id)"
-                class="rounded-2xl border overflow-hidden cursor-pointer transition bg-white shadow-sm hover:shadow-md"
-                :class="[
-                  store.activeGroupId === g.group_id ? 'ring-8 ring-brand-500 border-brand-200' : '',
-                  (String(g?.decision || '').toUpperCase() === 'REVIEW' && ['HIGH','CRITICAL'].includes(String(g?.risk_level || '').toUpperCase()))
-                    ? 'border-rose-200 bg-rose-50/60'
-                    : (String(g?.decision || '').toUpperCase() === 'REVIEW'
-                        ? 'border-amber-200 bg-amber-50/60'
-                        : 'border-slate-200 bg-white'
-                      )
-                ]"
-              >
-                <div class="flex">
-                  <!-- Severity rail -->
-                  <div
-                    class="w-1.5 shrink-0"
-                    :class="(String(g?.decision || '').toUpperCase() === 'PASS')
-                      ? 'bg-emerald-500'
-                      : (['HIGH','CRITICAL'].includes(String(g?.risk_level || '').toUpperCase())
+            <div v-else>
+              <!-- header row -->
+              <div class="grid grid-cols-12 px-6 py-3 bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                <div class="col-span-5">Item</div>
+                <div class="col-span-2 text-right">Order Unit</div>
+                <div class="col-span-2 text-right">Baseline</div>
+                <div class="col-span-2 text-right">Variance</div>
+                <div class="col-span-1 text-right">WHY</div>
+              </div>
+
+              <div class="divide-y divide-slate-100">
+                <div
+                  v-for="g in store.groups || []"
+                  :key="g.group_id"
+                  @click="store.selectGroup(g.group_id)"
+                  class="grid grid-cols-12 px-6 py-4 cursor-pointer transition"
+                  :class="[
+                    store.activeGroupId === g.group_id ? 'bg-slate-100' : 'hover:bg-slate-50'
+                  ]"
+                >
+                  <!-- ITEM -->
+                  <div class="col-span-5 flex items-start gap-3 min-w-0">
+                    <!-- compact status -->
+                    <div
+                      class="mt-1 h-8 w-8 rounded-lg flex items-center justify-center text-white text-xs font-black shrink-0"
+                      :class="String(g.decision || '').toUpperCase() === 'PASS'
+                        ? 'bg-emerald-600'
+                        : ['HIGH','CRITICAL'].includes(String(g.risk_level || '').toUpperCase())
                           ? 'bg-rose-600'
-                          : 'bg-amber-500'
-                        )"
-                  />
+                          : 'bg-amber-500'"
+                      aria-hidden="true"
+                    >
+                      <span v-if="String(g.decision || '').toUpperCase() === 'PASS'">✓</span>
+                      <span v-else>!</span>
+                    </div>
 
-                  <div class="flex-1 p-5">
-                    <div class="flex items-start justify-between gap-4">
-                      <!-- LEFT -->
-                      <div class="min-w-0 flex-1">
-                        <!-- Title -->
-                        <div class="flex items-start justify-between gap-3">
-                          <div class="min-w-0">
-                            <div class="flex items-center gap-2 min-w-0">
-                              <!-- Severity icon -->
-                              <span
-                                class="inline-flex h-8 w-8 items-center justify-center rounded-xl text-white font-black"
-                                :class="(String(g?.decision || '').toUpperCase() === 'PASS')
-                                  ? 'bg-emerald-600'
-                                  : (['HIGH','CRITICAL'].includes(String(g?.risk_level || '').toUpperCase())
-                                      ? 'bg-rose-600'
-                                      : 'bg-amber-500'
-                                    )"
-                                aria-hidden="true"
-                              >
-                                <span v-if="String(g?.decision || '').toUpperCase() === 'PASS'">✓</span>
-                                <span v-else>!</span>
-                              </span>
-
-                              <div class="min-w-0">
-                                <div class="font-extrabold text-slate-900 truncate">
-                                  {{ g?.sku?.item_name || g?.sku?.name || '—' }}
-                                </div>
-                                <div class="text-xs text-slate-500 mt-0.5">
-                                  SKU <span class="font-mono">{{ g?.sku?.sku || '—' }}</span>
-                                  <span class="mx-2 text-slate-300">•</span>
-                                  Qty {{ g?.sku?.quantity ?? '—' }}
-                                  <span v-if="g?.sku?.source_line_ref">
-                                    <span class="mx-2 text-slate-300">•</span>
-                                    line {{ g.sku.source_line_ref }}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                          <div class="font-semibold text-slate-900 truncate">
+                            {{ g?.sku?.item_name || g?.sku?.name || '—' }}
                           </div>
 
-                          <!-- Active check -->
-                          <div
-                            v-if="store.activeGroupId === g.group_id"
-                            class="w-7 h-7 rounded-lg bg-brand-50 border border-brand-200 flex items-center justify-center font-black text-brand-700"
-                            title="Selected"
-                          >
-                            ✓
-                          </div>
-                        </div>
+                          <div class="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-2">
+                            <span class="font-mono">SKU {{ g?.sku?.sku || '—' }}</span>
+                            <span class="text-slate-300">•</span>
+                            <span>Qty {{ g?.sku?.quantity ?? '—' }}</span>
 
-                        <!-- Badges -->
-                        <div class="mt-3 flex flex-wrap items-center gap-2">
-                          <!-- Severity -->
-                          <span
-                            class="px-2.5 py-1 rounded-full border text-[11px] font-extrabold tracking-wide"
-                            :class="(String(g?.decision || '').toUpperCase() === 'PASS')
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : (['HIGH','CRITICAL'].includes(String(g?.risk_level || '').toUpperCase())
-                                  ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                  : 'bg-amber-50 text-amber-700 border-amber-200'
-                                )"
-                          >
-                            {{
-                              (String(g?.decision || '').toUpperCase() === 'PASS')
-                                ? 'PASS'
-                                : (['HIGH','CRITICAL'].includes(String(g?.risk_level || '').toUpperCase()) ? 'BLOCKING' : 'WARNING')
-                            }}
-                          </span>
+                            <span v-if="g?.sku?.source_line_ref">
+                              <span class="text-slate-300">•</span>
+                              line {{ g.sku.source_line_ref }}
+                            </span>
 
-                          <!-- Risk -->
-                          <span
-                            class="px-2 py-0.5 rounded border text-[11px] font-bold"
-                            :class="riskBadge(g.risk_level)"
-                          >
-                            {{ String(g.risk_level || '—').toUpperCase() }}
-                          </span>
-
-                          <!-- Decision -->
-                          <span
-                            class="px-2 py-0.5 rounded border text-[11px] font-bold"
-                            :class="decisionBadge(g.decision)"
-                          >
-                            {{ String(g.decision || '—').toUpperCase() }}
-                          </span>
-
-                          <!-- Confidence (if present) -->
-                          <span
-                            v-if="g?.confidence != null"
-                            class="px-2 py-0.5 rounded border text-[11px] font-bold bg-white text-slate-600 border-slate-200"
-                            title="Model confidence"
-                          >
-                            {{ Math.round((g.confidence || 0) * 100) }}%
-                          </span>
-                        </div>
-
-                        <!-- KPI row -->
-                        <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-                          <!-- PO Unit -->
-                          <div class="rounded-xl p-3 bg-white/70 border border-slate-200">
-                            <div class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">PO Unit</div>
-                            <div class="mt-1 font-mono font-extrabold text-slate-900">
-                              {{ fmt(g?.sku?.unit_price?.value || 0) }}
-                            </div>
-                            <div class="text-[10px] text-slate-400 mt-0.5">{{ g?.sku?.unit_price?.currency || currency }}</div>
-                          </div>
-
-                          <!-- Baseline -->
-                          <div class="rounded-xl p-3 bg-white/70 border border-slate-200">
-                            <div class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Baseline</div>
-                            <div class="mt-1 font-mono font-extrabold text-slate-900">
-                              {{ fmt(g?.baseline?.value || 0) }}
-                            </div>
-                            <div class="text-[10px] text-slate-400 mt-0.5">{{ g?.baseline?.currency || currency }}</div>
-                          </div>
-
-                          <!-- Variance -->
-                          <div class="rounded-xl p-3 bg-white/70 border border-slate-200">
-                            <div class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Variance</div>
-
-                            <template v-if="variancePct(g?.sku?.unit_price?.value, g?.baseline?.value) !== null">
-                              <div
-                                class="mt-1 font-mono font-extrabold"
-                                :class="(variancePct(g?.sku?.unit_price?.value, g?.baseline?.value) || 0) > 0
-                                  ? 'text-rose-600'
-                                  : 'text-emerald-700'"
-                              >
-                                {{ (variancePct(g?.sku?.unit_price?.value, g?.baseline?.value) || 0).toFixed(2) }}%
-                              </div>
-                            </template>
-                            <template v-else>
-                              <div class="mt-1 text-slate-400 font-extrabold">—</div>
-                            </template>
-
-                            <div class="text-[10px] text-slate-400 mt-0.5">baseline compare</div>
-                          </div>
-
-                          <!-- Decision -->
-                          <div class="rounded-xl p-3 bg-white/70 border border-slate-200 flex flex-col justify-center">
-                            <div class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Decision</div>
                             <span
-                              class="mt-1 inline-flex items-center px-2.5 py-1 rounded-full border text-xs font-extrabold w-fit"
-                              :class="decisionBadge(g.decision)"
+                              class="ml-1 px-2 py-0.5 rounded border text-[10px] font-bold"
+                              :class="riskBadge(g.risk_level)"
                             >
-                              {{ String(g.decision || '—').toUpperCase() }}
+                              {{ String(g.risk_level || '—').toUpperCase() }}
+                            </span>
+
+                            <span
+                              v-if="g?.confidence != null"
+                              class="px-2 py-0.5 rounded border text-[10px] font-bold bg-white text-slate-600 border-slate-200"
+                              title="Model confidence"
+                            >
+                              {{ Math.round((g.confidence || 0) * 100) }}%
                             </span>
                           </div>
-                        </div>
 
-                        <!-- Hint row (only when REVIEW) -->
-                        <div
-                          v-if="String(g?.decision || '').toUpperCase() === 'REVIEW'"
-                          class="mt-3 flex items-start gap-2 text-xs"
-                          :class="['HIGH','CRITICAL'].includes(String(g?.risk_level || '').toUpperCase()) ? 'text-rose-700' : 'text-amber-700'"
-                        >
-                          <span class="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-lg bg-white border border-slate-200 font-black">
-                            !
-                          </span>
-                          <div class="text-slate-600">
-                            Manual review required. Open WHY to see failed checks and evidence.
+                          <!-- micro compare bar (visual PO vs baseline delta) -->
+                          <div v-if="g?.sku && g?.baseline" class="mt-2 h-1.5 w-44 bg-slate-100 rounded-full overflow-hidden">
+                            <div
+                              class="h-1.5"
+                              :class="(variancePct(g?.sku?.unit_price?.value, g?.baseline?.value) || 0) > 3
+                                ? 'bg-rose-400'
+                                : 'bg-slate-300'"
+                              :style="{
+                                width:
+                                  Math.min(
+                                    Math.abs(variancePct(g?.sku?.unit_price?.value, g?.baseline?.value) || 0),
+                                    100
+                                  ) + '%'
+                              }"
+                            />
                           </div>
                         </div>
-                      </div>
 
-                      <!-- RIGHT ACTION -->
-                      <div class="shrink-0 flex flex-col items-end gap-2">
+                        <!-- keep behavior: quick open WHY (not required) -->
                         <button
-                          class="px-4 py-2 rounded-xl text-xs font-extrabold transition"
+                          class="shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-extrabold border transition"
                           :class="store.activeGroupId === g.group_id
-                            ? 'bg-slate-900 text-white hover:bg-slate-800'
-                            : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'"
+                            ? 'bg-slate-900 text-white border-slate-900 hover:bg-slate-800'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'"
                           @click.stop="store.selectGroup(g.group_id); store.setRightTab('WHY')"
                         >
-                          Open WHY
+                          WHY
                         </button>
+                      </div>
 
-                        <div class="text-[11px] text-slate-400 font-mono">
-                          group {{ String(g.group_id).slice(0, 8) }}…
-                        </div>
+                      <!-- subtle hint when exception -->
+                      <div
+                        v-if="g?.sku && g?.baseline && String(g?.decision || '').toUpperCase() === 'REVIEW'"
+                        class="mt-2 text-[11px]"
+                        :class="(variancePct(g?.sku?.unit_price?.value, g?.baseline?.value) || 0) > 3
+                          ? 'text-rose-700'
+                          : 'text-amber-700'"
+                      >
+                        Exception: variance exceeds policy threshold. Review evidence on the right.
                       </div>
                     </div>
                   </div>
+
+                  <!-- PO UNIT -->
+                  <div class="col-span-2 text-right">
+                    <div class="font-mono font-semibold text-slate-900">
+                      {{ fmt(g?.sku ? (g?.sku?.unit_price?.value || 0) : 0) }}
+                    </div>
+                    <div class="text-[10px] text-slate-400">
+                      {{ (g?.sku?.unit_price?.currency || currency) }}
+                    </div>
+                  </div>
+
+                  <!-- BASELINE -->
+                  <div class="col-span-2 text-right">
+                    <div class="font-mono font-semibold text-slate-900">
+                      {{ fmt(g?.baseline?.value || 0) }}
+                    </div>
+                    <div class="text-[10px] text-slate-400">
+                      {{ g?.baseline?.currency || currency }}
+                    </div>
+                  </div>
+
+                  <!-- VARIANCE (primary signal) -->
+                  <div class="col-span-2 text-right">
+                    <template v-if="g?.sku && g?.baseline && variancePct(g?.sku?.unit_price?.value, g?.baseline?.value) !== null">
+                      <div
+                        class="font-mono font-semibold"
+                        :class="(variancePct(g?.sku?.unit_price?.value, g?.baseline?.value) || 0) > 3
+                          ? 'text-rose-700'
+                          : 'text-slate-900'"
+                      >
+                        {{ (variancePct(g?.sku?.unit_price?.value, g?.baseline?.value) || 0).toFixed(2) }}%
+                      </div>
+                      <div
+                        class="text-[10px] mt-0.5"
+                        :class="(variancePct(g?.sku?.unit_price?.value, g?.baseline?.value) || 0) > 3
+                          ? 'text-rose-600'
+                          : 'text-slate-400'"
+                      >
+                        {{ (variancePct(g?.sku?.unit_price?.value, g?.baseline?.value) || 0) > 3 ? 'Out of policy' : 'Within policy' }}
+                      </div>
+                    </template>
+                    <template v-else>
+                      <div class="font-mono font-semibold text-slate-400">—</div>
+                      <div class="text-[10px] text-slate-300 mt-0.5">n/a</div>
+                    </template>
+                  </div>
+
+                  <!-- WHY shortcut (kept for behavior) -->
+                  <div class="col-span-1 text-right flex items-center justify-end">
+                    <span
+                      class="px-2 py-1 rounded-lg border text-[11px] font-extrabold"
+                      :class="decisionBadge(g.decision)"
+                    >
+                      {{ String(g.decision || '—').toUpperCase() }}
+                    </span>
+                  </div>
+
                 </div>
               </div>
 
-              <!-- empty -->
-              <div v-if="!(store.groups || []).length" class="py-16 text-center text-sm text-slate-500">
-                No groups found.
-              </div>
             </div>
 
             <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
@@ -581,129 +570,108 @@ function variancePct(po?: number, baseline?: number) {
           />
 
           <button
-            class="px-5 py-2 rounded-lg border border-slate-200 text-sm font-bold hover:bg-slate-50"
-            @click="store.submitDecision('REJECT')"
-          >
-            Reject
-          </button>
-
-          <button
-            class="px-5 py-2 rounded-lg bg-slate-900 text-white text-sm font-bold hover:bg-slate-800"
+            class="px-5 py-2 rounded-xl bg-slate-900 text-white text-sm font-bold hover:bg-slate-800"
             @click="store.submitDecision('APPROVE')"
           >
             Approve
+          </button>
+
+          <button
+            class="px-5 py-2 rounded-xl border border-slate-200 bg-white text-sm font-bold hover:bg-slate-50"
+            @click="store.submitDecision('REJECT')"
+          >
+            Reject
           </button>
         </div>
       </div>
     </div>
 
-    <!-- ================= Evidence Modal ================= -->
+    <!-- ================= EVIDENCE MODAL ================= -->
     <div
       v-if="store.evidenceModalOpen"
-      class="fixed inset-0 z-50 bg-slate-900/30 backdrop-blur-sm flex items-center justify-center p-6"
+      class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-6"
       @click.self="store.closeEvidenceModal()"
     >
-      <div class="w-full max-w-4xl bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
-        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-          <div>
-            <div class="text-sm font-extrabold text-slate-900">Evidence Pack</div>
-            <div class="text-xs text-slate-500 mt-0.5">Group: <span class="font-mono">{{ store.activeGroupId }}</span></div>
-          </div>
-          <button class="text-sm text-slate-500 hover:text-slate-900" @click="store.closeEvidenceModal()">✕</button>
-        </div>
-
-        <div class="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <!-- Documents -->
-          <div class="lg:col-span-4">
-            <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Documents</div>
-            <div class="space-y-2">
-              <button
-                v-for="d in store.activeDocuments"
-                :key="d.document_id"
-                class="w-full text-left px-4 py-3 rounded-xl border border-slate-200 hover:bg-slate-50"
-                @click="store.openPdf(d.document_id, 1)"
-              >
-                <div class="text-sm font-bold text-slate-900 truncate">{{ d.file_name }}</div>
-                <div class="text-[11px] text-slate-500 font-mono mt-1">{{ d.document_id }}</div>
-              </button>
-
-              <div v-if="!store.activeDocuments.length" class="p-4 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-500">
-                No documents
-              </div>
+      <div class="w-full max-w-5xl bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="text-sm font-extrabold text-slate-900 truncate">Evidence Pack</div>
+            <div class="text-xs text-slate-500 font-mono mt-0.5 truncate">
+              group {{ store.activeGroupId }} · evidences {{ store.activeEvidences.length }}
             </div>
           </div>
 
-          <!-- Evidences -->
-          <div class="lg:col-span-8">
-            <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Evidences</div>
-            <div class="space-y-3">
-              <div
-                v-for="ev in store.activeEvidences"
-                :key="ev.evidence_id"
-                class="border border-slate-200 rounded-2xl p-4"
-              >
-                <div class="flex items-start justify-between gap-3">
-                  <div>
-                    <div class="text-sm font-extrabold text-slate-900">
-                      {{ store.activeDocuments.find(d => d.document_id === ev.document_id)?.file_name || ev.document_id }}
-                    </div>
-                    <div class="text-xs text-slate-500 font-mono mt-1">
-                      anchor {{ ev.anchor_type }} · {{ ev.extraction_method || '—' }}
-                      · confidence {{ ev.confidence ?? '—' }}
-                    </div>
-                  </div>
+          <button class="text-sm text-slate-500 hover:text-slate-900" @click="store.closeEvidenceModal()">✕</button>
+        </div>
 
-                  <button
-                    class="px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-bold hover:bg-slate-800"
-                    @click="store.openPdf(ev.document_id, ev.source_page ?? (ev.price_items?.[0]?.page_number ?? 1))"
+        <div class="p-6 max-h-[70vh] overflow-y-auto">
+          <div class="space-y-4">
+            <div
+              v-for="ev in store.activeEvidences"
+              :key="ev.evidence_id"
+              class="border border-slate-200 rounded-2xl p-4"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <div class="text-sm font-extrabold text-slate-900">
+                    {{ store.activeDocuments.find(d => d.document_id === ev.document_id)?.file_name || ev.document_id }}
+                  </div>
+                  <div class="text-xs text-slate-500 font-mono mt-1">
+                    anchor {{ ev.anchor_type }} · {{ ev.extraction_method || '—' }}
+                    · confidence {{ ev.confidence ?? '—' }}
+                  </div>
+                </div>
+
+                <button
+                  class="px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-bold hover:bg-slate-800"
+                  @click="store.openPdf(ev.document_id, ev.source_page ?? (ev.price_items?.[0]?.page_number ?? 1))"
+                >
+                  View PDF
+                </button>
+              </div>
+
+              <div v-if="ev.source_snippet" class="mt-3 bg-slate-50 border border-slate-200 rounded-lg p-3 font-mono text-xs text-slate-700">
+                {{ ev.source_snippet }}
+              </div>
+
+              <div v-if="ev.price_items?.length" class="mt-3">
+                <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Matched price items</div>
+
+                <div class="space-y-2">
+                  <div
+                    v-for="pi in ev.price_items"
+                    :key="pi.price_item_id"
+                    class="border border-slate-200 rounded-xl p-3"
                   >
-                    View PDF
-                  </button>
-                </div>
-
-                <div v-if="ev.source_snippet" class="mt-3 bg-slate-50 border border-slate-200 rounded-lg p-3 font-mono text-xs text-slate-700">
-                  {{ ev.source_snippet }}
-                </div>
-
-                <div v-if="ev.price_items?.length" class="mt-3">
-                  <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Matched price items</div>
-
-                  <div class="space-y-2">
-                    <div
-                      v-for="pi in ev.price_items"
-                      :key="pi.price_item_id"
-                      class="border border-slate-200 rounded-xl p-3"
-                    >
-                      <div class="flex items-start justify-between gap-3">
-                        <div class="min-w-0">
-                          <div class="text-sm font-bold text-slate-900 truncate">
-                            {{ pi.sku || '—' }} · {{ pi.item_name || '—' }}
-                          </div>
-                          <div class="text-xs text-slate-500 font-mono mt-1">
-                            page {{ pi.page_number ?? '—' }} · {{ pi.currency || 'THB' }}
-                          </div>
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <div class="text-sm font-bold text-slate-900 truncate">
+                          {{ pi.sku || '—' }} · {{ pi.item_name || '—' }}
                         </div>
-
-                        <button
-                          class="px-3 py-2 rounded-lg border border-slate-200 text-xs font-bold hover:bg-slate-50"
-                          @click="store.openPdf(pi.document_id, pi.page_number ?? 1)"
-                        >
-                          Open page
-                        </button>
+                        <div class="text-xs text-slate-500 font-mono mt-1">
+                          page {{ pi.page_number ?? '—' }} · {{ pi.currency || 'THB' }}
+                        </div>
                       </div>
 
-                      <div v-if="pi.snippet" class="mt-2 bg-slate-50 border border-slate-200 rounded-lg p-2 font-mono text-xs text-slate-700">
-                        {{ pi.snippet }}
-                      </div>
+                      <button
+                        class="px-3 py-2 rounded-lg border border-slate-200 text-xs font-bold hover:bg-slate-50"
+                        @click="store.openPdf(pi.document_id, pi.page_number ?? 1)"
+                      >
+                        Open page
+                      </button>
+                    </div>
+
+                    <div v-if="pi.snippet" class="mt-2 bg-slate-50 border border-slate-200 rounded-lg p-2 font-mono text-xs text-slate-700">
+                      {{ pi.snippet }}
                     </div>
                   </div>
                 </div>
-
               </div>
 
-              <div v-if="!store.activeEvidences.length" class="p-4 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-500">
-                No evidences
-              </div>
+            </div>
+
+            <div v-if="!store.activeEvidences.length" class="p-4 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-500">
+              No evidences
             </div>
           </div>
         </div>
