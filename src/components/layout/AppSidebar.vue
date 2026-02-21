@@ -43,6 +43,13 @@ const navItems = computed(() => [
       icon: 'gavel', 
       disabled: !currentCaseId.value 
     }, 
+     { 
+      name: 'Decision Trace', 
+      path: currentCaseId.value ? `/cases/${currentCaseId.value}/trace` : '#', 
+      icon: 'gavel', 
+      disabled: !currentCaseId.value 
+    }, 
+    
     { 
       name: 'Evidence Trace', 
       path: currentCaseId.value ? `/cases/${currentCaseId.value}/evidence` : '#', 

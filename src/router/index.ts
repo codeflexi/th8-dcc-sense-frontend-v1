@@ -39,6 +39,14 @@ const router = createRouter({
               props: true,
             },
 
+               // 🔴 DEFAULT = Decision Run
+            {
+              path: 'trace',
+              name: 'CaseDecisionTrace',
+              component: () => import('@/features/audit/views/AuditTimelineView.vue'),
+              props: true,
+            },
+
             // Evidence tab
             {
               path: 'evidence',
@@ -51,7 +59,7 @@ const router = createRouter({
             {
               path: 'audit',
               name: 'CaseAudit',
-              component: () => import('@/features/audit/views/AuditTimelineView.vue'),
+              component: () => import('@/features/decision-trace/views/AuditTimelineView.vue'),
               props: true,
             },
           ],

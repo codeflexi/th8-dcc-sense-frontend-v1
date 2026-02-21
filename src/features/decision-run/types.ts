@@ -60,13 +60,10 @@ export interface CaseGroupsResponse {
 }
 
 export interface RuleCalculation {
-  field?: string
-  actual?: any
-  expected?: any
-  operator?: string
-  required_docs?: string[]
-  has_any_document?: boolean
-  [k: string]: any
+  field: string
+  actual: any
+  expected: any
+  operator: string
 }
 
 export interface GroupRule {
@@ -75,6 +72,10 @@ export interface GroupRule {
   result: string
   explanation: string
   calculation?: RuleCalculation
+
+  // optional (used by finance_ap UI to avoid PASS wording confusion)
+  exec_message?: string
+  audit_message?: string
 }
 
 export interface GroupRulesResponse {
@@ -108,22 +109,18 @@ export interface PriceItem {
   snippet?: string | null
   confidence_score?: number | null
   created_at?: string
-  highlight_text?: string | null
 }
 
 export interface EvidenceItem {
   evidence_id: string
-  evidence_type: string
-  anchor_type: string
-  anchor_id: string
-  document_id: string
-  source_page?: number | null
-  source_snippet?: string | null
-  confidence?: number | null
-  extraction_method?: string | null
-  evidence_payload?: Record<string, any>
-  price_items?: PriceItem[]
+  kind: string
+  title: string
+  snippet?: string | null
+  document_id?: string | null
+  page_id?: string | null
+  page_number?: number | null
   created_at?: string
+  price_item?: PriceItem | null
 }
 
 export interface GroupEvidenceResponse {
@@ -132,10 +129,113 @@ export interface GroupEvidenceResponse {
   evidences: EvidenceItem[]
 }
 
-/* ===============================
- * finance_ap decision-results types
- * =============================== */
+export type PriceContext = 'BASELINE' | '3WAY_MATCH' | string
 
+export interface DecisionRunPolicyRef {
+  policy_id: string
+  policy_version: string
+}
+
+export interface DecisionRunSummary {
+  overall_decision: string
+  risk_level: RiskLevel
+  confidence_avg?: number
+  item_count: number
+  exposure?: {
+    currency: string
+    unit_variance_sum?: number
+  }
+  top_reason_codes?: Array<{ code: string; count: number }>
+}
+
+export interface DecisionRunItemIdentity {
+  sku: string
+  name: string
+  uom?: string
+}
+
+export interface DecisionRunQtyFlags {
+  gr_exceeds_po?: boolean
+  inv_exceeds_gr?: boolean
+  inv_without_gr?: boolean
+}
+
+export interface DecisionRunQuantity {
+  po: number
+  gr: number
+  inv: number
+  over_gr_qty?: number
+  over_inv_qty?: number
+  flags?: DecisionRunQtyFlags
+}
+
+export interface DecisionRunPrice {
+  context: PriceContext
+  po_unit?: number
+  inv_unit?: number
+  baseline_unit?: number | null
+  variance_pct?: number | null
+  variance_abs?: number | null
+  tolerance_abs?: number | null
+  currency?: string
+  within_tolerance?: boolean
+  has_baseline?: boolean
+}
+
+export interface DecisionRunDriver {
+  rule_id: string
+  label: string
+  severity?: string
+}
+
+export interface DecisionRunItemStatus {
+  decision: string
+  risk: RiskLevel
+  confidence?: number
+}
+
+export interface DecisionRunRule {
+  rule_id: string
+  group?: string
+  domain?: string
+  result: string
+  severity?: string
+  exec_message?: string
+  audit_message?: string
+  calculation?: RuleCalculation | null
+  fail_actions?: any[]
+}
+
+export interface DecisionRunArtifacts {
+  po?: boolean
+  grn?: boolean
+  invoice?: boolean
+}
+
+export interface DecisionRunItem {
+  group_id: string
+  status?: DecisionRunItemStatus
+  item: DecisionRunItemIdentity
+  quantity: DecisionRunQuantity
+  price: DecisionRunPrice
+  drivers?: DecisionRunDriver[]
+  next_action?: string | null
+  rules?: DecisionRunRule[]
+  artifacts?: DecisionRunArtifacts
+  created_at?: string
+}
+
+export interface DecisionRunViewContext {
+  case_id: string
+  run_id: string
+  policy?: DecisionRunPolicyRef
+  technique?: string
+  created_at?: string
+  summary?: DecisionRunSummary
+  items: DecisionRunItem[]
+}
+
+// legacy (old finance_ap payload)
 export interface FinanceDecisionResult {
   result_id?: string
   run_id?: string
@@ -156,3 +256,5 @@ export interface FinanceDecisionResultsResponse {
   count: number
   results: FinanceDecisionResult[]
 }
+
+export type DecisionResultsResponse = DecisionRunViewContext | FinanceDecisionResultsResponse
